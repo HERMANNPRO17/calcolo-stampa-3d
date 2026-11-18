@@ -1,23 +1,51 @@
 # CALCOLO STAMPA 3D
 
-App web in italiano per preventivi di stampa 3D su PC e smartphone. Importa G-code e 3MF elaborati dallo slicer, gestisce bobine, stampanti e assemblati, archivia preventivi numerati ed esporta la distinta con eventuali foto.
+[Apri l’app / Open the app](https://hermannpro17.github.io/calcolo-stampa-3d/)
 
-## Avvio
+App per PC e smartphone, in italiano e inglese, con icona bobina e cubo blu. Gestisce preventivi per assemblati, importazione di G-code e 3MF elaborati dallo slicer, bobine, stampanti, componenti extra e lavorazioni.
 
-Pubblica i file della cartella su un hosting statico HTTPS. Con GitHub Pages seleziona la cartella principale del repository. Per una prova locale con Python già installato, esegui python -m http.server 8000 in questa cartella e apri http://localhost:8000.
+## PC Windows
 
-Su PC e Android usa il comando di installazione del browser. Su iPhone usa Safari e scegli Condividi, poi Aggiungi a Home.
+1. Premi **Code → Download ZIP** e scegli **Estrai tutto** sul file scaricato.
+2. Per creare l’icona sul desktop, apri **CREA ICONA DESKTOP.vbs** dalla cartella estratta. Il file copia l’icona nella cartella locale dell’utente e crea il collegamento **CALCOLO STAMPA 3D** sul desktop.
+3. Il collegamento apre la versione web nel browser predefinito. Usa sempre lo stesso browser per ritrovare il tuo archivio.
+4. Per aprire la copia scaricata, fai doppio clic su **AVVIA APP.cmd**.
 
-## Archivio
+## Android
 
-I dati vengono salvati nel browser su ciascun dispositivo. In Stampanti e dati trovi Scarica backup, Ripristina un backup e l’importazione dei file JSON della precedente versione Windows. Per trasferire l’archivio tra dispositivi, usa il backup.
+1. Apri il link dell’app in Chrome.
+2. Dal menu **⋮**, scegli **Installa app** oppure **Aggiungi a schermata Home**.
+3. Avvia l’app dall’icona con la bobina blu.
 
-## English
-Choose English in the navigation. Both languages use the same local archive. The selected language is also used for quote exports. Host this folder over HTTPS or serve it locally to try it.
+## iPhone
 
+1. Apri il link dell’app in Safari.
+2. Premi **Condividi → Aggiungi a Home → Aggiungi**.
+3. Avvia l’app dall’icona con la bobina blu.
+
+## Archivio e trasferimento PC ↔ smartphone
+
+La versione pubblica salva i dati nel browser del dispositivo. Il trasferimento è manuale tramite backup.
+
+1. Nel dispositivo con i dati aggiornati, apri **Stampanti e dati → Scarica backup**.
+2. Trasferisci il file JSON all’altro dispositivo.
+3. Apri la stessa app e scegli **Stampanti e dati → Ripristina un backup**.
+4. Per tornare dal telefono al PC, ripeti i passaggi nella direzione opposta.
+
+**Il ripristino sostituisce l’archivio di destinazione.** Lavora su un dispositivo alla volta durante il trasferimento. Conserva una copia del backup prima di ripristinare. La copia scaricata e la versione web possono avere archivi distinti.
+
+## English instructions
+
+Open the app using the link above. Choose **English** in the navigation.
+
+- **Windows desktop icon:** download and extract the repository ZIP, then open **CREA ICONA DESKTOP.vbs**. It creates a desktop shortcut with the blue spool icon and opens the web app in your default browser.
+- **Downloaded copy:** open **AVVIA APP.cmd** from the extracted folder.
+- **Android:** open the app in Chrome and choose **Install app** or **Add to Home screen**.
+- **iPhone:** open the app in Safari and choose **Share → Add to Home Screen**.
+- **Transfer data:** use **Printers and data → Download backup** on the source device, transfer the JSON file, then choose **Restore a backup** on the destination. Restoring replaces that device’s archive. Automatic cloud synchronisation is not included in the public edition.
 
 ## Licenza / License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Uso gratuito per finalità non commerciali. Per l’uso commerciale occorre un’autorizzazione separata.
+[PolyForm Noncommercial License 1.0.0](LICENSE). Uso gratuito per finalità non commerciali. L’uso commerciale richiede un’autorizzazione separata.
 
 Free for noncommercial use. Commercial use requires separate permission.
