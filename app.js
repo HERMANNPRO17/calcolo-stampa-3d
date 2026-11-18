@@ -95,7 +95,7 @@ function printEditor(p,j){
 }
 function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
- return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF già affettati.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
+ return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
   '<fieldset><legend>Componenti extra</legend>'+q.Componenti.map((c,i)=>fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Rimuovi componente','rmComp:'+i)).join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
   '<fieldset><legend>Costi stampante predefinita e lavorazioni</legend>'+fields([...machine,['Energia (€/kWh)','Tariffa'],['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
@@ -289,7 +289,7 @@ async function readFile(file){
   const found=gcode(await read(),file.name+' · Piatto '+idx);
   if(!p)parts.set(idx,found);else {p.Minuti ||= found.Minuti;if(!p.Materiali.length)p.Materiali=found.Materiali}
  }
- if(!parts.size)throw Error('Il 3MF non contiene piatti affettati.');
+ if(!parts.size)throw Error('Il 3MF non contiene piatti elaborati dallo slicer.');
  return [...parts.values()].map(p=>p.Materiali.length?p:{...p,Materiali:[mat()]});
 }
 async function legacy(files){
