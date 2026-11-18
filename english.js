@@ -45,7 +45,7 @@ function ammortamento(m){
  if(n(m.OreResidue)>0)return (n(m.ValoreResiduo)+n(m.Migliorie))/n(m.OreResidue);
  return n(m.Acquisto)/n(m.Vita);
 }
-const numeroPreventivo=v=>Number.isSafeInteger(v)&&v>0?'No. '+String(v).padStart(4,'0'):'Draft';
+const numeroPreventivo=v=>Number.isSafeInteger(v)&&v>0?'No. '+String(v).padStart(4,'0'):'Number assigned on save';
 function assegnaNumeri(archivio){
  let prossimo=Math.max(1,n(archivio.prossimoPreventivo),...archivio.preventivi.map(p=>n(p.Numero)+1));
  for(const p of [...archivio.preventivi].reverse()){
@@ -99,7 +99,7 @@ function quote(){
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
   '<fieldset><legend>Extra components</legend>'+q.Componenti.map((c,i)=>fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
   '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
-  '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn('Export quote','export')+btn('New quote','new')+'</div></section>';
+  '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('New quote','new')+'</div></section>';
 }
 function costs(check=true){
  if(check&&(!q.Titolo.trim()||!Number.isInteger(n(q.ProdottiFiniti))||n(q.ProdottiFiniti)<1||n(q.Vita)<=0))throw Error('Check the product name, finished product count and printer useful life.');
@@ -222,6 +222,17 @@ function spoolForm(existing){
   }catch(err){dialog.querySelector('.error').textContent=err.message}
  };
  dialog.showModal();
+}
+async function salvaPreventivo(x){
+    const preventivo={...structuredClone(q),Data:new Date().toLocaleString('en-GB'),Esito:{Totale:x.total}};
+    await save(d=>{
+     const i=d.preventivi.findIndex(p=>preventivo.Numero?p.Numero===preventivo.Numero:
+      originalQuote&&p.Titolo===originalQuote.Titolo&&p.Data===originalQuote.Data);
+     if(preventivo.Numero&&i<0)throw Error('Quote not found in the archive.');
+     if(i>=0)d.preventivi[i]=preventivo;else d.preventivi.unshift(preventivo);
+     assegnaNumeri(d);
+    });
+    q.Numero=preventivo.Numero;originalQuote=null;
 }
 function exportQuote(x){
  const doc='<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Including markup, excluding VAT</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
@@ -349,17 +360,9 @@ $('#view').addEventListener('click',async e=>{
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);return;
    }
    case 'calc':showTotal(costs());return;
-   case 'export':exportQuote(costs());return;
+   case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
    case 'save':{
-    const x=costs(), preventivo={...structuredClone(q),Data:new Date().toLocaleString('en-GB'),Esito:{Totale:x.total}};
-    await save(d=>{
-     const i=d.preventivi.findIndex(p=>preventivo.Numero?p.Numero===preventivo.Numero:
-      originalQuote&&p.Titolo===originalQuote.Titolo&&p.Data===originalQuote.Data);
-     if(preventivo.Numero&&i<0)throw Error('Quote not found in the archive.');
-     if(i>=0)d.preventivi[i]=preventivo;else d.preventivi.unshift(preventivo);
-     assegnaNumeri(d);
-    });
-    q.Numero=preventivo.Numero;originalQuote=null;
+    const x=costs();await salvaPreventivo(x);
     render();showTotal(x);msg('Quote '+numeroPreventivo(q.Numero)+' saved.');return;
    }
    case 'new':if(confirm('Start a new quote?')){q=fresh();originalQuote=null;const m=data.profili.find(x=>x.nome===q.Profilo)??data.profili[0];if(m){q.Profilo=m.nome;applyProfile(m)}else q.Profilo='Manual printer settings'}break;
