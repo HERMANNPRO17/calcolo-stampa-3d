@@ -76,6 +76,10 @@ async function preparaFoto(file){
   throw Error('Photo too large. Choose a simpler image.');
  }finally{URL.revokeObjectURL(url)}
 }
+function datiStampante(p){
+ const m=p.Macchina??q;
+ return esc(m.nome??q.Profilo)+' · '+esc(m.Watt)+' W (printer) · '+esc(m.WattAms)+' W (AMS) · '+euro(m.Acquisto)+' (purchase) · '+esc(m.Vita)+' h · '+esc(m.Tariffa??q.Tariffa)+' €/kWh';
+}
 function printEditor(p,j){
  const prefix=j===q.StampeAggiuntive.length?'':'StampeAggiuntive.'+j+'.';
  const machines=[['','Quote’s default printer'],...data.profili.map(m=>[m.nome,m.nome])];
@@ -87,14 +91,14 @@ function printEditor(p,j){
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Spool '+m.Bobina+' rimossa']);
   return '<div class="row">'+fields([input('Filament',k+'Nome','text'),input('Grams',k+'Grams'),input('Additional AMS (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options)])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
+ return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
 }
 function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
- return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
+ return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
   '<fieldset><legend>Extra components</legend>'+q.Componenti.map((c,i)=>fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
-  '<fieldset><legend>Costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
+  '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn('Export quote','export')+btn('New quote','new')+'</div></section>';
 }
 function costs(check=true){
@@ -293,7 +297,12 @@ async function legacy(files){
   }
  });
 }
-$('#view').addEventListener('input',e=>{const el=e.target,p=el.dataset.bind;if(p&&el.tagName!=='SELECT')set(p,el.value)});
+$('#view').addEventListener('input',e=>{const el=e.target,p=el.dataset.bind;if(p&&el.tagName!=='SELECT'){
+ set(p,el.value);
+ if(['Watt','WattAms','Acquisto','Vita','Tariffa'].includes(p)){
+  for(const el of document.querySelectorAll('[data-printer-summary]'))el.querySelector('span').innerHTML=datiStampante([...q.StampeAggiuntive,q][n(el.dataset.printerSummary)]);
+ }
+}});
 $('#view').addEventListener('change',async e=>{
  const el=e.target,p=el.dataset.bind;
  try{
@@ -301,6 +310,7 @@ $('#view').addEventListener('change',async e=>{
    const parte=[...q.StampeAggiuntive,q][n(el.dataset.machine)];
    const profilo=data.profili.find(m=>m.nome===el.value);
    if(profilo)parte.Macchina=structuredClone(profilo);else if(!el.value)delete parte.Macchina;
+   render();return;
   }
   if(p&&el.tagName==='SELECT'){
    set(p,el.value);
