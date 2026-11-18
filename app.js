@@ -7,30 +7,22 @@ const round=v=>Math.round((v+Number.EPSILON)*100)/100;
 const mat=()=>({Nome:'PLA',Grammi:0,Extra:0,Prezzo:0,Bobina:''});
 const part=()=>({Origine:'',Minuti:0,Pezzi:1,Ripetizioni:1,Materiali:[mat()]});
 const fresh=()=>({...part(),Titolo:'',Cliente:'',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
-const blank=()=>({prossimo:1,bobine:[],preventivi:[],profili:['Bambu Lab A1','Bambu Lab X2D'].map(nome=>({nome,Watt:0,WattAms:0,Vita:3000,Acquisto:0}))});
+const blank=()=>({prossimo:1,bobine:[],preventivi:[],profili:[]});
 let data=blank(),tab='quote',q=fresh(),active=false,initialSync=true;
 const id=v=>String(v).padStart(4,'0');
 const value=(path)=>path.split('.').reduce((o,k)=>o[k],q);
 function set(path,v){const a=path.split('.');const key=a.pop();a.reduce((o,k)=>o[k],q)[key]=v}
 let msgTimer,originalQuote=null;
 function msg(s){$('#message').textContent=s;clearTimeout(msgTimer);msgTimer=setTimeout(()=>$('#message').textContent='',7500)}
-const cleanArchive=new URLSearchParams(location.search).get('archivio')==='pulito';
-const storageKey=cleanArchive?'calcolo-stampa-3d.archivio-pulito.v1':'calcolo-stampa-3d.archivio.v1';
-function emptyArchive(){const state=blank();if(cleanArchive)state.profili=[];return state;}
-function configureArchiveLinks(){
- const language=document.querySelector('.lingua'),link=document.createElement('a'),url=new URL(location.href);
- link.className='lingua'; link.textContent=cleanArchive?'Apri archivio abituale':'Apri versione pulita';
- if(cleanArchive)url.searchParams.delete('archivio');else url.searchParams.set('archivio','pulito');
- link.href=url.href;language.before(link);
- if(cleanArchive){const target=new URL(language.href);target.searchParams.set('archivio','pulito');language.href=target.href}
-}
+const storageKey='calcolo-stampa-3d.pubblico.v1';
+function emptyArchive(){return {prossimo:1,bobine:[],preventivi:[],profili:[]};}
 function sync(){
  try{
   const raw=localStorage.getItem(storageKey);
   data=raw?JSON.parse(raw):emptyArchive();
   active=true;
-  if(initialSync){const m=data.profili.find(p=>p.nome===q.Profilo);if(m)applyProfile(m);else if(cleanArchive&&!data.profili.length)q.Profilo='Stampante manuale';initialSync=false}
-  $('#sync').textContent=cleanArchive?'Archivio separato · Versione pulita':'Archivio su questo dispositivo';render();
+  if(initialSync){const m=data.profili.find(p=>p.nome===q.Profilo);if(m)applyProfile(m);else if(!data.profili.length)q.Profilo='Stampante manuale';initialSync=false}
+  $('#sync').textContent='Archivio su questo dispositivo';render();
  }catch(e){active=false;$('#sync').textContent='Archivio non disponibile';msg(e.message)}
 }
 async function save(change){
@@ -409,5 +401,5 @@ $('#view').addEventListener('click',async e=>{
 $('nav').onclick=e=>{const t=e.target.dataset.tab;if(t){tab=t;render()}};
 $('#reload').onclick=sync;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
-configureArchiveLinks();render();sync();
+render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
