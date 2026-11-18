@@ -14,20 +14,29 @@ const value=(path)=>path.split('.').reduce((o,k)=>o[k],q);
 function set(path,v){const a=path.split('.');const key=a.pop();a.reduce((o,k)=>o[k],q)[key]=v}
 let msgTimer,originalQuote=null;
 function msg(s){$('#message').textContent=s;clearTimeout(msgTimer);msgTimer=setTimeout(()=>$('#message').textContent='',7500)}
-const storageKey='calcolo-stampa-3d.archivio.v1';
+const cleanArchive=new URLSearchParams(location.search).get('archivio')==='pulito';
+const storageKey=cleanArchive?'calcolo-stampa-3d.archivio-pulito.v1':'calcolo-stampa-3d.archivio.v1';
+function emptyArchive(){const state=blank();if(cleanArchive)state.profili=[];return state;}
+function configureArchiveLinks(){
+ const language=document.querySelector('.lingua'),link=document.createElement('a'),url=new URL(location.href);
+ link.className='lingua'; link.textContent=cleanArchive?'Open usual archive':'Open clean edition';
+ if(cleanArchive)url.searchParams.delete('archivio');else url.searchParams.set('archivio','pulito');
+ link.href=url.href;language.before(link);
+ if(cleanArchive){const target=new URL(language.href);target.searchParams.set('archivio','pulito');language.href=target.href}
+}
 function sync(){
  try{
   const raw=localStorage.getItem(storageKey);
-  data=raw?JSON.parse(raw):blank();
+  data=raw?JSON.parse(raw):emptyArchive();
   active=true;
-  if(initialSync){const m=data.profili.find(p=>p.nome===q.Profilo);if(m)applyProfile(m);initialSync=false}
-  $('#sync').textContent='Archive on this device';render();
+  if(initialSync){const m=data.profili.find(p=>p.nome===q.Profilo);if(m)applyProfile(m);else if(cleanArchive&&!data.profili.length)q.Profilo='Manual printer settings';initialSync=false}
+  $('#sync').textContent=cleanArchive?'Separate archive · Clean edition':'Archive on this device';render();
  }catch(e){active=false;$('#sync').textContent='Archive unavailable';msg(e.message)}
 }
 async function save(change){
  if(!active)throw Error('Local archive unavailable.');
  const current=localStorage.getItem(storageKey);
- const next=current?JSON.parse(current):blank();
+ const next=current?JSON.parse(current):emptyArchive();
  change(next);
  localStorage.setItem(storageKey,JSON.stringify(next));
  data=next;
@@ -400,5 +409,5 @@ $('#view').addEventListener('click',async e=>{
 $('nav').onclick=e=>{const t=e.target.dataset.tab;if(t){tab=t;render()}};
 $('#reload').onclick=sync;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
-render();sync();
+configureArchiveLinks();render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
