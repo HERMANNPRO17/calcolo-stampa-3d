@@ -1,6 +1,6 @@
 # CALCOLO STAMPA 3D
 
-App web in italiano per preventivi di stampa 3D su PC e smartphone. Importa G-code e 3MF affettati, gestisce bobine, stampanti e assemblati, archivia preventivi numerati ed esporta la distinta con eventuali foto.
+App web in italiano per preventivi di stampa 3D su PC e smartphone. Importa G-code e 3MF elaborati dallo slicer, gestisce bobine, stampanti e assemblati, archivia preventivi numerati ed esporta la distinta con eventuali foto.
 
 ## Avvio
 
@@ -14,3 +14,10 @@ I dati vengono salvati nel browser su ciascun dispositivo. In Stampanti e dati t
 
 ## English
 Choose English in the navigation. Both languages use the same local archive. The selected language is also used for quote exports. Host this folder over HTTPS or serve it locally to try it.
+
+
+## Licenza / License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE). Uso gratuito per finalità non commerciali. Per l’uso commerciale occorre un’autorizzazione separata.
+
+Free for noncommercial use. Commercial use requires separate permission.
