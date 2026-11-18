@@ -123,10 +123,11 @@ function costs(check=true){
  let acc=0,net=0;const rows=lines.map(([name,qty,price,foto])=>{acc+=price*(1+n(q.Ricarico)/100);const next=round(acc), amount=round(next-net);net=next;return [name,qty,amount,foto]});
  net=round(acc+costoEsercizio*(1+n(q.Ricarico)/100));
  const tax=round(net*n(q.Iva)/100),total=round(net+tax);
- return {rows,net,tax,total,unit:total/n(q.ProdottiFiniti)};
+ const productionCost=lines.reduce((sum,row)=>sum+row[2],costoEsercizio);
+ return {rows,net,tax,total,unit:total/n(q.ProdottiFiniti),productionCost,productionUnit:productionCost/n(q.ProdottiFiniti)};
 }
 function showTotal(x){
- $('#total').innerHTML='<div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per finished product · VAT '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
+ $('#total').innerHTML='<p><strong>Production cost: '+euro(x.productionCost)+'</strong> · '+euro(x.productionUnit)+' per finished product<br><small>Internal use, before markup and VAT</small></p><div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per finished product · VAT '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
 }
 function spools(){
  return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB')+' g remaining · '+euro(n(b.Prezzo)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
