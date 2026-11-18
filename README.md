@@ -1,4 +1,4 @@
-# Calcolo Stampa 3D
+# CALCOLO STAMPA 3D
 
 App web in italiano per preventivi di stampa 3D su PC e smartphone. Importa G-code e 3MF affettati, gestisce bobine, stampanti e assemblati, archivia preventivi numerati ed esporta la distinta con eventuali foto.
 
