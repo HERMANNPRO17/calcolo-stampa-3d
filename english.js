@@ -392,7 +392,7 @@ function spoolForm(existing){
  dialog.showModal();
 }
 async function salvaPreventivo(x){
-    const preventivo={...structuredClone(q),Data:new Date().toLocaleString('en-GB'),Esito:{Totale:x.total}};
+    const preventivo={...structuredClone(q),Data:q.Data||new Date().toLocaleString('en-GB'),Esito:{Totale:x.total}};
     await save(d=>{
      const i=d.preventivi.findIndex(p=>preventivo.Numero?p.Numero===preventivo.Numero:
       originalQuote&&p.Titolo===originalQuote.Titolo&&p.Data===originalQuote.Data);
@@ -400,10 +400,18 @@ async function salvaPreventivo(x){
      if(i>=0)d.preventivi[i]=preventivo;else d.preventivi.unshift(preventivo);
      assegnaNumeri(d);
     });
-    q.Numero=preventivo.Numero;originalQuote=null;
+    q.Numero=preventivo.Numero;q.Data=preventivo.Data;originalQuote=null;
+}
+function dataPreventivo(value){
+ const text=String(value??'').trim();
+ const iso=text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+ if(iso)return iso[3]+'/'+iso[2]+'/'+iso[1];
+ const local=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+ if(local)return local[1].padStart(2,'0')+'/'+local[2].padStart(2,'0')+'/'+local[3];
+ return text;
 }
 function documentoPreventivo(x){
- return '<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}@media print{body{margin:0;max-width:none;padding:0}button{display:none}thead{display:table-header-group}@page{size:A4;margin:14mm}}</style><button onclick="window.print()" style="padding:10px 16px;margin-bottom:20px">Print / Save PDF</button><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Amount (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
+ return '<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}@media print{body{margin:0;max-width:none;padding:0}button{display:none}thead{display:table-header-group}@page{size:A4;margin:14mm}}</style><button onclick="window.print()" style="padding:10px 16px;margin-bottom:20px">Print / Save PDF</button><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p><strong>Date:</strong> '+esc(dataPreventivo(q.Data))+'</p><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Amount (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
 }
 function exportQuote(x){
  const doc=documentoPreventivo(x);
