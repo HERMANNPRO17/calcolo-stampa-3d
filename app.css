@@ -22,3 +22,15 @@ fieldset>.row{padding:18px 14px;background:#f4f7fc;border:1px solid #ccd8eb;bord
 .total{font-size:2rem}
 dialog{width:min(820px,calc(100% - 24px))}
 @media(max-width:540px){fieldset,.card{padding:14px;margin-bottom:24px}.fields{gap:12px}legend{font-size:1.1rem}nav{gap:8px}nav button{flex:1 1 40%}}
+
+.parte-stampa{border:3px solid #5277b0;border-top:7px solid #2857a5;border-radius:14px;margin:34px 0;padding:24px;background:#fff;box-shadow:0 5px 18px #14243c14}
+.parte-stampa legend{background:#2857a5;color:white;border-color:#2857a5;font-size:1.3rem;padding:8px 20px}
+.settore-extra{border:3px solid #7285a4;border-top:7px solid #526480;background:#f7f9fd;margin-top:38px}
+.settore-extra legend{background:#526480;color:white}
+.settore-lavorazioni{border:3px solid #8597b2;border-top:7px solid #364b6b;margin-top:38px}
+.settore-lavorazioni legend{background:#364b6b;color:white}
+.parametri-stampante{margin:16px 0 22px;padding:12px 16px;background:#edf2f9;border:1px solid #aabdd8;border-radius:8px}
+.parametri-stampante summary{cursor:pointer;font-weight:650;color:#243c5d}
+.parametri-stampante[open] summary{margin-bottom:16px}
+button[data-action^="rmPart:"]{border:2px solid #a33c47;color:#8f2632;font-weight:700}
+@media(max-width:540px){.parte-stampa{padding:14px;margin:28px 0}.parte-stampa legend{font-size:1.15rem}}
