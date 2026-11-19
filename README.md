@@ -44,11 +44,31 @@ Open the app using the link above. Choose **English** in the navigation.
 - **iPhone:** open the app in Safari and choose **Share → Add to Home Screen**.
 - **Transfer data:** use **Printers and data → Download backup** on the source device, transfer the JSON file, then choose **Restore a backup** on the destination. Restoring replaces that device’s archive. Automatic cloud synchronisation is not included in the public edition.
 
-## Licenza / License
+## Licenza e vincoli di utilizzo / License and usage restrictions
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Uso gratuito per finalità non commerciali. L’uso commerciale richiede un’autorizzazione separata.
+Copyright © 2026 HERMANNPRO17.
 
-Free for noncommercial use. Commercial use requires separate permission.
+Il software è distribuito con la [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Uso gratuito per finalità personali, hobbistiche e non commerciali, nei limiti della licenza.
+- È consentito condividere e modificare il software per gli scopi ammessi, conservando il testo della licenza o il suo URL e gli avvisi obbligatori di copyright.
+- Per vendere l’app, offrirla come servizio commerciale o usarla nell’attività commerciale ordinaria occorre ottenere un’autorizzazione separata dal titolare. Restano applicabili gli usi espressamente consentiti dalla licenza per le organizzazioni indicate nel suo testo.
+- Il software è fornito nelle condizioni in cui si trova, con le esclusioni di garanzia e responsabilità previste dalla licenza e nei limiti di legge.
+
+Per richiedere un’autorizzazione commerciale, contatta HERMANNPRO17 attraverso il [profilo GitHub](https://github.com/HERMANNPRO17).
+
+Questo riepilogo facilita la lettura. Le condizioni applicabili sono nel file [LICENSE](LICENSE).
+
+### English
+
+The software is provided under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Free for personal, hobby and other noncommercial purposes permitted by the license.
+- Sharing and modification are permitted for allowed purposes, subject to retaining the license text or its URL and all required notices.
+- Selling the app, offering it as a commercial service or using it in ordinary commercial business requires separate permission from the licensor. The organizational uses expressly allowed by the license remain permitted.
+- Warranty and liability exclusions apply as stated in the license, to the extent permitted by law.
+
+Contact [HERMANNPRO17](https://github.com/HERMANNPRO17) for commercial permission. This is a reading aid; [LICENSE](LICENSE) contains the applicable terms.
 
 
 ## Stampe multicolore / Multicolour prints
