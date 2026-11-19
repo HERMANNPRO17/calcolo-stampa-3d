@@ -475,6 +475,19 @@ async function zipEntries(file){
  }
  return entries;
 }
+
+let codaImportazioni=Promise.resolve();
+const campiParte=['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione'];
+function aggiungiPartiInOrdine(nuove){
+ if(!nuove.length)return;
+ const corrente=Object.fromEntries(campiParte.filter(k=>Object.prototype.hasOwnProperty.call(q,k)).map(k=>[k,q[k]]));
+ const compilata=!!(q.Origine||n(q.Minuti)||q.Foto||q.Materiali.some(m=>n(m.Grammi)>0));
+ const tutte=[...q.StampeAggiuntive,...(compilata?[corrente]:[]),...nuove];
+ const ultima=tutte.pop();
+ q.StampeAggiuntive=tutte;
+ for(const key of campiParte){if(Object.prototype.hasOwnProperty.call(ultima,key))q[key]=ultima[key];else delete q[key]}
+}
+
 async function readFile(file){
  if(!file.name.toLowerCase().endsWith('.3mf'))return [gcode(await file.text(),file.name)];
  const entries=await zipEntries(file),parts=new Map();
@@ -546,9 +559,12 @@ $('#view').addEventListener('change',async e=>{
    parte.Foto=await preparaFoto(el.files[0]);render();return;
   }
   if(el.id==='files'){
-   const parts=(await Promise.all(Array.from(el.files,readFile))).flat();if(!parts.length)return;
-   if(!q.StampeAggiuntive.length&&!q.Origine&&!n(q.Minuti)){Object.assign(q,parts.shift())}
-   q.StampeAggiuntive.push(...parts);render();msg('Print files imported. Check weights and prices.');
+   const files=Array.from(el.files);el.value='';
+   codaImportazioni=codaImportazioni.catch(()=>{}).then(async()=>{
+    const parts=(await Promise.all(files.map(readFile))).flat();
+    aggiungiPartiInOrdine(parts);render();msg('Print files imported in order. Check weights and prices.');
+   });
+   await codaImportazioni;
   }
   if(el.id==='restore'&&el.files.length){
    const backup=JSON.parse(await el.files[0].text());
@@ -592,7 +608,7 @@ $('#view').addEventListener('click',async e=>{
     render();showTotal(x);msg('Quote '+numeroPreventivo(q.Numero)+' saved.');return;
    }
    case 'new':if(confirm('Start a new quote?')){q=fresh();originalQuote=null;const m=data.profili.find(x=>x.nome===q.Profilo)??data.profili[0];if(m){q.Profilo=m.nome;applyProfile(m)}else q.Profilo='Manual printer settings'}break;
-   case 'part':q.StampeAggiuntive.push(part());break;
+   case 'part':aggiungiPartiInOrdine([part()]);break;
    case 'rmPart':{
     if(!confirm('Delete this printed part from the quote?'))return;
     eliminaParte(n(i));break;
