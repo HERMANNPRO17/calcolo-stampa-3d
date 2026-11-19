@@ -146,7 +146,7 @@ function quote(){
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
   '<fieldset><legend>Extra materials</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)+'</div>').join('')+btn('Add component','comp')+'</fieldset>'+
   '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
-  '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('New quote','new')+'</div></section>';
+  '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('Print / PDF','pdf',true)+btn('New quote','new')+'</div></section>';
 }
 function costs(check=true){
  if(check&&(!q.Titolo.trim()||!Number.isInteger(n(q.ProdottiFiniti))||n(q.ProdottiFiniti)<1||n(q.Vita)<=0))throw Error('Check the product name, finished product count and printer useful life.');
@@ -340,9 +340,13 @@ async function salvaPreventivo(x){
     });
     q.Numero=preventivo.Numero;originalQuote=null;
 }
+function documentoPreventivo(x){
+ return '<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}@media print{body{margin:0;max-width:none;padding:0}button{display:none}thead{display:table-header-group}@page{size:A4;margin:14mm}}</style><button onclick="window.print()" style="padding:10px 16px;margin-bottom:20px">Print / Save PDF</button><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Amount (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
+}
 function exportQuote(x){
- const doc='<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Amount (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
+ const doc=documentoPreventivo(x);
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([doc],{type:'text/html'}));a.download='Quote '+q.Titolo+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+
 }
 function gcode(text,name){
  const time=text.match(/total estimated time\s*:\s*([^;\r\n]+)/i)?.[1]??text.match(/^;\s*estimated printing time(?: \(normal mode\))?\s*[:=]\s*([^;\r\n]+)/im)?.[1]??'';
@@ -486,6 +490,17 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'print':stampaElenco(i);return;
    case 'calc':showTotal(costs());return;
+   case 'pdf':{
+    const x=costs(),page=window.open('','_blank');
+    if(!page)throw Error('Allow the browser to open the print window.');
+    try{
+     if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}
+     page.document.open();page.document.write(documentoPreventivo(x));page.document.close();
+     Promise.all(Array.from(page.document.images,img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})))
+      .then(()=>{if(!page.closed){page.focus();page.print()}});
+    }catch(err){page.close();throw err}
+    return;
+   }
    case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
    case 'save':{
     const x=costs();await salvaPreventivo(x);
