@@ -139,9 +139,10 @@ function printEditor(p,j){
   const options=[['','Nessuna bobina'],...data.bobine.filter(b=>!nascondiEsaurite||residuo(b)>0||id(b.Id)===m.Bobina).map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara)).toFixed(2)+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Bobina '+m.Bobina+' rimossa']);
   const primary=data.bobine.find(b=>id(b.Id)===m.Bobina);
-  const reserves=[['','Nessuna riserva'],...data.bobine.filter(b=>stessaBobina(primary,b)&&residuo(b)>0).map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+' · '+residuo(b).toFixed(2)+' g'])];
+  const compatible=data.bobine.filter(b=>stessaBobina(primary,b)&&residuo(b)>0);
+  const reserves=[['','Nessuna riserva'],...compatible.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+' · '+residuo(b).toFixed(2)+' g'])];
   if(m.Riserva&&!reserves.some(([v])=>v===m.Riserva))reserves.push([m.Riserva,'Riserva da verificare '+m.Riserva]);
-  return '<div class="row">'+(m.Slot?'<strong>Filamento slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filamento',k+'Nome','text'),input('Colore / HEX',k+'Colore','text'),input('Grammi',k+'Grammi'),input('Scarto extra (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Bobina',k+'Bobina',options),select('Alimentazione',k+'Alimentazione',[['','Da verificare'],['AMS','AMS'],['EXT','Bobina esterna (EXT)']]),...(m.Alimentazione==='AMS'?[select('Bobina identica di riserva AMS',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>La riserva viene usata per disponibilità e scarico dei consumi. Abilita il cambio bobina automatico sulla stampante e verifica la compatibilità nell’AMS.</small>':'')+btn('Rimuovi filamento','rmMat:'+j+':'+i)+'</div>';
+  return '<div class="row">'+(m.Slot?'<strong>'+(m.Alimentazione==='EXT'?'Bobina esterna (EXT) · ':'' )+'Filamento file '+esc(m.Slot)+'</strong>':'')+fields([input('Filamento',k+'Nome','text'),input('Colore / HEX',k+'Colore','text'),input('Grammi',k+'Grammi'),input('Scarto extra (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Bobina',k+'Bobina',options),select('Alimentazione',k+'Alimentazione',[['','Da verificare'],['AMS','AMS'],['EXT','Bobina esterna (EXT)']]),...(m.Alimentazione==='AMS'?[select('Bobina identica di riserva AMS',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>La riserva richiede una seconda bobina identica disponibile. Abilita il cambio automatico anche sulla stampante.</small>'+(primary?btn('Aggiungi bobina identica','backupSpool:'+j+':'+i):'<p>Seleziona prima la bobina principale.</p>')+(!compatible.length?'<p role="status">Nessuna bobina identica disponibile nel magazzino.</p>':'')+'':'')+btn('Rimuovi filamento','rmMat:'+j+':'+i)+'</div>';
  }).join('');
  return '<fieldset class="parte-stampa"><legend>Parte '+(j+1)+'</legend>'+fields([input('Nome o file',prefix+'Origine','text'),input('Durata (min)',prefix+'Minuti'),input('Pezzi per stampa',prefix+'Pezzi'),input('Ripetizioni',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Dati stampante usata per questo pezzo:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Foto del pezzo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Rimuovi foto','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Aggiungi filamento','mat:'+j)+btn('Registra consumo','consume:'+j)+btn('Elimina parte','rmPart:'+j)+'</div></fieldset>';
 }
@@ -243,7 +244,15 @@ function esportaCsv(tipo){
 function spools(){
  return '<section class="card"><h2>Bobine</h2>'+btn('Nuova bobina','spool')+btn('Stampa elenco bobine','print:bobine')+btn('CSV filamenti','csv:bobine')+btn(nascondiEsaurite?'Mostra bobine esaurite':'Nascondi bobine esaurite','toggleEmpty')+data.bobine.filter(b=>!nascondiEsaurite||residuo(b)>0).map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Cod. '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+' g residui · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Modifica','spool:'+b.Id)+btn('Cancella','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
 }
-function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+'</div>').join('')+'</section>'}
+
+function eliminaPreventivo(db,target){
+ const index=db.preventivi.findIndex(p=>target.Numero?p.Numero===target.Numero:p.Titolo===target.Titolo&&p.Data===target.Data);
+ if(index<0)throw Error('Il preventivo è già stato rimosso. Aggiorna l’archivio.');
+ assegnaNumeri(db);
+ db.preventivi.splice(index,1);
+}
+
+function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+btn('Elimina preventivo','deleteQuote:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Tariffa elettrica (€/kWh)','Tariffa']];
 const costFields=[
  ['Budget riparazioni (€)','BudgetRiparazioni'],['Ore previste per il budget','BudgetOre'],
@@ -341,14 +350,15 @@ function dataCalendario(value){
  const match=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
  return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):'';
 }
-function spoolForm(existing){
+function spoolForm(existing,modello=null,onCreated=null){
+ const initial=existing??(modello?{...modello,Data:'',Lordo:n(modello.Acquistato)+n(modello.Tara)}:null);
  const dialog=document.createElement('dialog');
  const props=[['Produttore','Marca'],['Materiale','Tipo filamento'],['Colore','Colore'],['Fornitore','Fornitore'],['Diametro','Diametro (mm)'],['Densita','Densità (g/cm³, facoltativa)'],['Codice','Codice articolo'],['Lotto','Lotto'],['Data','Data acquisto'],['Acquistato','Peso netto acquistato (g)'],['Lordo','Lordo attuale (g)'],['Tara','Tara (g)'],['Prezzo','Prezzo per bobina (€)'],['Iva','IVA acquisto (%)'],['Note','Note']];
  const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Modifica bobina':'Nuova bobina')+'</h2>'+fields(props.map(([k,l])=>{
   const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
-  return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(existing?.[k]):existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
- }))+'<label>Tipo prezzo<select name="PrezzoIvato"><option value="true" '+(!existing||existing.PrezzoIvato===true?'selected':'')+'>IVA compresa</option><option value="false" '+(existing&&existing.PrezzoIvato!==true?'selected':'')+'>IVA esclusa</option></select></label>'+(existing?'':'<label>Bobine identiche<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Netto residuo: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Salva</button><button type="button">Annulla</button></div></form>';
+  return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(initial?.[k]):initial?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
+ }))+'<label>Tipo prezzo<select name="PrezzoIvato"><option value="true" '+(!initial||initial.PrezzoIvato===true?'selected':'')+'>IVA compresa</option><option value="false" '+(initial&&initial.PrezzoIvato!==true?'selected':'')+'>IVA esclusa</option></select></label>'+(existing?'':'<label>Bobine identiche<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Netto residuo: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Salva</button><button type="button">Annulla</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
  
  let pesoAcquistatoManuale=!!existing;
@@ -374,7 +384,9 @@ function spoolForm(existing){
   try{
    if(b.Densita!==null&&(!Number.isFinite(b.Densita)||b.Densita<=0))throw Error('Inserisci una densità positiva oppure lascia il campo vuoto.');
    if(b.Lordo<b.Tara||b.Acquistato<=0||b.Diametro<=0)throw Error('Controlla lordo, tara, peso acquistato e diametro.');
-   await save(d=>{if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Bobina rimossa.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
+   let createdId=null;
+   await save(d=>{if(!existing)createdId=d.prossimo;if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Bobina rimossa.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
+   if(onCreated&&createdId!==null)onCreated(data.bobine.find(b=>b.Id===createdId));
    dialog.close();render();msg('Bobine salvate.');
   }catch(err){dialog.querySelector('.error').textContent=err.message}
  };
@@ -522,7 +534,7 @@ $('#view').addEventListener('change',async e=>{
    set(p,el.value);
    if(p.endsWith('.Bobina')||p.endsWith('.Alimentazione')){const prefix=p.slice(0,p.lastIndexOf('.')+1);set(prefix+'Riserva','')}
    if(p==='Profilo'){const m=data.profili.find(x=>x.nome===el.value);if(m)applyProfile(m)}
-   if(p.endsWith('.Bobina')){const b=data.bobine.find(x=>id(x.Id)===el.value);if(b){const key=p.slice(0,-6);set(key+'Nome',b.Materiale+' · '+b.Colore);set(key+'Prezzo',n(b.Prezzo)*1000/n(b.Acquistato))}}
+   if(p.endsWith('.Bobina')){const b=data.bobine.find(x=>id(x.Id)===el.value);if(b){const key=p.slice(0,-6);set(key+'Nome',b.Materiale+' · '+b.Colore);set(key+'Prezzo',prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))}}
    render();
   }
   if(el.dataset.component!==undefined&&el.value!==''){
@@ -596,7 +608,22 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'comp':q.Componenti.push({Nome:'',Quantita:1,Prezzo:0,Iva:22,PrezzoIvato:true,DataAcquisto:'',Fornitore:'',Codice:''});break;
    case 'rmComp':q.Componenti.splice(n(i),1);break;
+   case 'deleteQuote':{
+    const target=data.preventivi[n(i)];
+    if(!target||!confirm('Eliminare definitivamente questo preventivo? '+numeroPreventivo(target.Numero)+' · '+target.Titolo))return;
+    await save(db=>eliminaPreventivo(db,target));
+    if(q.Numero===target.Numero&&target.Numero||originalQuote&&originalQuote.Titolo===target.Titolo&&originalQuote.Data===target.Data){q=fresh();originalQuote=null}
+    msg('Preventivo eliminato.');break;
+   }
    case 'open':originalQuote=data.preventivi[n(i)];q={...fresh(),...structuredClone(originalQuote)};tab='quote';break;
+   case 'backupSpool':{
+    const material=p.Materiali[n(j)];
+    const primary=data.bobine.find(b=>id(b.Id)===material.Bobina);
+    if(!primary)throw Error('Seleziona prima la bobina principale.');
+    spoolForm(null,primary,created=>{
+     if(stessaBobina(primary,created)){material.Riserva=id(created.Id);material.Alimentazione='AMS'}
+    });return;
+   }
    case 'spool':spoolForm(data.bobine.find(b=>b.Id===n(i)));return;
    case 'rmSpool':if(confirm('Cancellare la bobina '+id(i)+'?'))await save(d=>d.bobine=d.bobine.filter(b=>b.Id!==n(i)));break;
    case 'rmPrinter':{
