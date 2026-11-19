@@ -56,3 +56,15 @@ Free for noncommercial use. Commercial use requires separate permission.
 Importa il G-code oppure il 3MF elaborato dallo slicer. Se sono presenti i pesi per filamento, ogni slot mantiene grammi e colore in una riga separata. Assegna bobina e prezzo a ciascuna riga. Se il G-code riporta soltanto il totale, usa un 3MF con i consumi per filamento oppure suddividi manualmente il totale. Verifica che gli scarti già inclusi nel peso esportato non vengano inseriti di nuovo come AMS extra.
 
 Import G-code or sliced 3MF. Per-filament weights and colours are kept in separate slot rows when available. Assign a spool and price to each row. For total-only G-code, use a 3MF with per-filament usage or split the total manually. Avoid adding waste already included in the exported weight again as extra AMS grams.
+
+
+## Aggiornamento del 19 novembre 2026 / Update, 19 November 2026
+
+- Stampe multicolore con slot, colori e pesi per filamento quando disponibili nel file; gestione bobina esterna e AMS.
+- Cataloghi richiamabili di materiale extra e ricambi, fornitori, codici, date di acquisto e IVA inclusa o esclusa.
+- Peso netto bobina calcolato da lordo meno tara e densità facoltativa.
+- Parti eliminabili, sezioni più visibili, colori HEX come sfondo e pesi e prezzi a due decimali.
+- Stampa/PDF del preventivo e stampa degli elenchi di bobine, ricambi, materiale extra e preventivi.
+- Le funzioni sono disponibili in italiano e inglese. I dati della versione pubblica restano nel browser del dispositivo; il trasferimento avviene tramite backup.
+
+Multicolour import, external spool support, reusable purchase catalogs, automatic net spool weight, optional density, clearer layout, quote printing/PDF and printable inventory and quote lists are available in Italian and English. Public-edition data is stored locally in the browser and can be transferred using backups.
