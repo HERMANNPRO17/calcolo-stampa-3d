@@ -146,7 +146,7 @@ function quote(){
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
   '<fieldset><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)+'</div>').join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
   '<fieldset><legend>Costi stampante predefinita e lavorazioni</legend>'+fields([...machine,['Energia (€/kWh)','Tariffa'],['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
-  '<section class="card"><h2>Riepilogo</h2><div id="total"></div><div class="actions">'+btn('Calcola','calc')+btn('Salva preventivo','save',true)+btn(q.Numero?'Esporta preventivo':'Salva ed esporta','export')+btn('Nuovo preventivo','new')+'</div></section>';
+  '<section class="card"><h2>Riepilogo</h2><div id="total"></div><div class="actions">'+btn('Calcola','calc')+btn('Salva preventivo','save',true)+btn(q.Numero?'Esporta preventivo':'Salva ed esporta','export')+btn('Stampa / PDF','pdf',true)+btn('Nuovo preventivo','new')+'</div></section>';
 }
 function costs(check=true){
  if(check&&(!q.Titolo.trim()||!Number.isInteger(n(q.ProdottiFiniti))||n(q.ProdottiFiniti)<1||n(q.Vita)<=0))throw Error('Controlla nome oggetto, prodotti finiti e vita della stampante.');
@@ -340,9 +340,13 @@ async function salvaPreventivo(x){
     });
     q.Numero=preventivo.Numero;originalQuote=null;
 }
+function documentoPreventivo(x){
+ return '<!doctype html><html lang="it"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}@media print{body{margin:0;max-width:none;padding:0}button{display:none}thead{display:table-header-group}@page{size:A4;margin:14mm}}</style><button onclick="window.print()" style="padding:10px 16px;margin-bottom:20px">Stampa / Salva PDF</button><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>Preventivo stampa 3D · '+esc(q.Cliente)+'</p><table><thead><tr><th>Voce</th><th>Quantità</th><th>Importo (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p>Imponibile '+euro(x.net)+' · IVA '+euro(x.tax)+'</p><h2>Totale '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per prodotto finito</p></html>';
+}
 function exportQuote(x){
- const doc='<!doctype html><html lang="it"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>Preventivo stampa 3D · '+esc(q.Cliente)+'</p><table><thead><tr><th>Voce</th><th>Quantità</th><th>Importo (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p>Imponibile '+euro(x.net)+' · IVA '+euro(x.tax)+'</p><h2>Totale '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per prodotto finito</p></html>';
+ const doc=documentoPreventivo(x);
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([doc],{type:'text/html'}));a.download='Preventivo '+q.Titolo+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+
 }
 function gcode(text,name){
  const time=text.match(/total estimated time\s*:\s*([^;\r\n]+)/i)?.[1]??text.match(/^;\s*estimated printing time(?: \(normal mode\))?\s*[:=]\s*([^;\r\n]+)/im)?.[1]??'';
@@ -486,6 +490,17 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'print':stampaElenco(i);return;
    case 'calc':showTotal(costs());return;
+   case 'pdf':{
+    const x=costs(),page=window.open('','_blank');
+    if(!page)throw Error('Consenti al browser di aprire la finestra di stampa.');
+    try{
+     if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}
+     page.document.open();page.document.write(documentoPreventivo(x));page.document.close();
+     Promise.all(Array.from(page.document.images,img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})))
+      .then(()=>{if(!page.closed){page.focus();page.print()}});
+    }catch(err){page.close();throw err}
+    return;
+   }
    case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
    case 'save':{
     const x=costs();await salvaPreventivo(x);
