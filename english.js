@@ -246,21 +246,36 @@ function render(){
 }
 function spoolForm(existing){
  const dialog=document.createElement('dialog');
- const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Iva','Purchase VAT (%)'],['Note','Notes']];
+ const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Densita','Density (g/cm³, optional)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Iva','Purchase VAT (%)'],['Note','Notes']];
  const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Edit spool':'New spool')+'</h2>'+fields(props.map(([k,l])=>{
   const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
-  return '<label>'+l+'<input name="'+k+'" value="'+esc(existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
+  return '<label>'+l+'<input name="'+k+'" value="'+esc(existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
  }))+'<label>Price type<select name="PrezzoIvato"><option value="true" '+(!existing||existing.PrezzoIvato===true?'selected':'')+'>VAT included</option><option value="false" '+(existing&&existing.PrezzoIvato!==true?'selected':'')+'>VAT excluded</option></select></label>'+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
- const update=()=>dialog.querySelector('output').textContent=(n(form.Lordo.value)-n(form.Tara.value)).toLocaleString('en-GB')+' g';
+ 
+ let pesoAcquistatoManuale=!!existing;
+ form.elements.Acquistato.addEventListener('input',()=>{pesoAcquistatoManuale=true});
+ const nettoOutput=dialog.querySelector('output');
+ nettoOutput.style.cssText='display:block;font-size:1.3rem;font-weight:700;padding:10px;background:#eaf1fc;border-radius:8px';
+ const update=()=>{
+  const lordo=form.elements.Lordo,tara=form.elements.Tara;
+  const completo=lordo.value.trim()!==''&&tara.value.trim()!=='';
+  const netto=n(lordo.value)-n(tara.value);
+  lordo.setCustomValidity(completo&&netto<0?'Gross weight must be at least equal to tare.':'');
+  nettoOutput.textContent=completo&&netto>=0?netto.toLocaleString('en-GB')+' g':'—';
+  if(completo&&netto>=0&&!pesoAcquistatoManuale)form.elements.Acquistato.value=Number(netto.toFixed(6));
+ };
+
  form.addEventListener('input',update);update();
  dialog.querySelector('button[type=button]').onclick=()=>dialog.close();
  dialog.addEventListener('close',()=>dialog.remove());
  form.onsubmit=async e=>{
   e.preventDefault();const b=Object.fromEntries(new FormData(form)),qty=n(b.quantita||1);delete b.quantita;
+  b.Densita=b.Densita.trim()===''?null:n(b.Densita);
   numeric.forEach(k=>b[k]=n(b[k]));b.PrezzoIvato=b.PrezzoIvato==='true';
   try{
+   if(b.Densita!==null&&(!Number.isFinite(b.Densita)||b.Densita<=0))throw Error('Enter a positive density or leave it empty.');
    if(b.Lordo<b.Tara||b.Acquistato<=0||b.Diametro<=0)throw Error('Check gross weight, tare, purchased weight and diameter.');
    await save(d=>{if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Spool removed.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
    dialog.close();render();msg('Spools saved.');
@@ -272,9 +287,9 @@ function spoolForm(existing){
   form.prepend(label);
   label.querySelector('select').onchange=e=>{
    if(e.target.value==='')return;const b=data.bobine[n(e.target.value)];
-   for(const k of ['Produttore','Materiale','Colore','Fornitore','Diametro','Codice','Acquistato','Tara','Prezzo','Iva','Note'])if(form.elements[k])form.elements[k].value=b[k]??'';
+   for(const k of ['Produttore','Materiale','Colore','Fornitore','Diametro','Densita','Codice','Acquistato','Tara','Prezzo','Iva','Note'])if(form.elements[k])form.elements[k].value=b[k]??'';
    form.elements.Lordo.value=n(b.Acquistato)+n(b.Tara);form.elements.Data.value='';
-   form.elements.PrezzoIvato.value=String(b.PrezzoIvato===true);update();
+   form.elements.PrezzoIvato.value=String(b.PrezzoIvato===true);pesoAcquistatoManuale=false;update();
   };
  }
  dialog.showModal();
