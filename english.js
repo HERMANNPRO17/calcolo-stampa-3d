@@ -44,7 +44,7 @@ function stileColore(value){
 }
 
 
-const campiDueDecimali=new Set(['Grammi','Extra','Prezzo','Acquistato','Lordo','Tara','Tariffa','Acquisto','Paga','PostTariffa','Altro','BudgetRiparazioni','ValoreResiduo','Migliorie']);
+const campiDueDecimali=new Set(['Minuti','Grammi','Extra','Prezzo','Acquistato','Lordo','Tara','Tariffa','Acquisto','Paga','PostTariffa','Altro','BudgetRiparazioni','ValoreResiduo','Migliorie']);
 function formattaNumero(value){return Number.isFinite(n(value))?n(value).toFixed(2):value}
 function formattaCampi(root){
  for(const el of root.querySelectorAll('input')){
@@ -132,22 +132,34 @@ function printEditor(p,j){
  const machines=[['','Quote’s default printer'],...data.profili.map(m=>[m.nome,m.nome])];
  if(p.Macchina&&!machines.some(([v])=>v===p.Macchina.nome))machines.push([p.Macchina.nome,p.Macchina.nome+' (from archive)']);
  const machineSelect='<label>Printer for this part<select data-machine="'+j+'">'+machines.map(([v,l])=>'<option value="'+esc(v)+'" '+(v===(p.Macchina?.nome??'')?'selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
+ const prefissoMacchina=p.Macchina?prefix+'Macchina.':'';
+ const parametriMacchina='<details class="parametri-stampante"><summary>Printer parameters</summary>'+fields([...machine,['Electricity (€/kWh)','Tariffa']].map(([label,key])=>input(label,prefissoMacchina+key)))+'</details>';
  const materials=p.Materiali.map((m,i)=>{
   const k=prefix+'Materiali.'+i+'.';
   const options=[['','No spool'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara)).toFixed(2)+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Spool '+m.Bobina+' rimossa']);
   return '<div class="row">'+(m.Slot?'<strong>Filament slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grams'),input('Additional waste (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options),select('Filament feed',k+'Alimentazione',[['','Not specified'],['AMS','AMS'],['EXT','External spool (EXT)']])])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
+ return '<fieldset class="parte-stampa"><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+btn('Delete part','rmPart:'+j)+'</div></fieldset>';
 }
 function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
-  '<fieldset><legend>Extra materials</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)+'</div>').join('')+btn('Add component','comp')+'</fieldset>'+
-  '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
+  '<fieldset class="settore-extra"><legend>Extra materials</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)+'</div>').join('')+btn('Add component','comp')+'</fieldset>'+
+  '<fieldset class="settore-lavorazioni"><legend>Labour and pricing</legend>'+fields([['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('Print / PDF','pdf',true)+btn('New quote','new')+'</div></section>';
 }
+
+function eliminaParte(index){
+ if(index<q.StampeAggiuntive.length){q.StampeAggiuntive.splice(index,1);return}
+ if(index!==q.StampeAggiuntive.length)return;
+ const sostituta=q.StampeAggiuntive.pop()??part();
+ for(const key of ['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione']){
+  if(Object.prototype.hasOwnProperty.call(sostituta,key))q[key]=sostituta[key];else delete q[key];
+ }
+}
+
 function costs(check=true){
  if(check&&(!q.Titolo.trim()||!Number.isInteger(n(q.ProdottiFiniti))||n(q.ProdottiFiniti)<1||n(q.Vita)<=0))throw Error('Check the product name, finished product count and printer useful life.');
  const lines=[...q.StampeAggiuntive,q].map((p,i)=>{
@@ -508,7 +520,10 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'new':if(confirm('Start a new quote?')){q=fresh();originalQuote=null;const m=data.profili.find(x=>x.nome===q.Profilo)??data.profili[0];if(m){q.Profilo=m.nome;applyProfile(m)}else q.Profilo='Manual printer settings'}break;
    case 'part':q.StampeAggiuntive.push(part());break;
-   case 'rmPart':q.StampeAggiuntive.splice(n(i),1);break;
+   case 'rmPart':{
+    if(!confirm('Delete this printed part from the quote?'))return;
+    eliminaParte(n(i));break;
+   }
    case 'mat':p.Materiali.push(mat());break;
    case 'rmPhoto':delete p.Foto;break;
    case 'rmMat':p.Materiali.splice(n(j),1);break;
