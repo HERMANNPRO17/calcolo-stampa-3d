@@ -244,13 +244,19 @@ function render(){
  $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori());
  for(const b of document.querySelectorAll('[data-tab]')){if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}
 }
+function dataCalendario(value){
+ const s=String(value??'').trim();
+ if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+ const match=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):'';
+}
 function spoolForm(existing){
  const dialog=document.createElement('dialog');
  const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Densita','Density (g/cm³, optional)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Iva','Purchase VAT (%)'],['Note','Notes']];
  const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Edit spool':'New spool')+'</h2>'+fields(props.map(([k,l])=>{
   const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
-  return '<label>'+l+'<input name="'+k+'" value="'+esc(existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
+  return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(existing?.[k]):existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
  }))+'<label>Price type<select name="PrezzoIvato"><option value="true" '+(!existing||existing.PrezzoIvato===true?'selected':'')+'>VAT included</option><option value="false" '+(existing&&existing.PrezzoIvato!==true?'selected':'')+'>VAT excluded</option></select></label>'+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
  
@@ -306,7 +312,7 @@ async function salvaPreventivo(x){
     q.Numero=preventivo.Numero;originalQuote=null;
 }
 function exportQuote(x){
- const doc='<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Including markup, excluding VAT</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
+ const doc='<!doctype html><html lang="en"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>3D printing quote · '+esc(q.Cliente)+'</p><table><thead><tr><th>Item</th><th>Quantity</th><th>Amount (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p >Subtotal '+euro(x.net)+' · VAT '+euro(x.tax)+'</p><h2 >Total '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per finished product</p></html>';
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([doc],{type:'text/html'}));a.download='Quote '+q.Titolo+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function gcode(text,name){
