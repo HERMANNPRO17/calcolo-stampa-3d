@@ -139,9 +139,10 @@ function printEditor(p,j){
   const options=[['','No spool'],...data.bobine.filter(b=>!nascondiEsaurite||residuo(b)>0||id(b.Id)===m.Bobina).map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara)).toFixed(2)+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Spool '+m.Bobina+' rimossa']);
   const primary=data.bobine.find(b=>id(b.Id)===m.Bobina);
-  const reserves=[['','No backup'],...data.bobine.filter(b=>stessaBobina(primary,b)&&residuo(b)>0).map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+' · '+residuo(b).toFixed(2)+' g'])];
+  const compatible=data.bobine.filter(b=>stessaBobina(primary,b)&&residuo(b)>0);
+  const reserves=[['','No backup'],...compatible.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+' · '+residuo(b).toFixed(2)+' g'])];
   if(m.Riserva&&!reserves.some(([v])=>v===m.Riserva))reserves.push([m.Riserva,'Check backup '+m.Riserva]);
-  return '<div class="row">'+(m.Slot?'<strong>Filament slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grammi'),input('Additional waste (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options),select('Filament feed',k+'Alimentazione',[['','Not specified'],['AMS','AMS'],['EXT','External spool (EXT)']]),...(m.Alimentazione==='AMS'?[select('Identical AMS backup spool',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>The backup is used for availability and consumption tracking. Enable automatic filament backup on the printer and check AMS compatibility.</small>':'')+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
+  return '<div class="row">'+(m.Slot?'<strong>'+(m.Alimentazione==='EXT'?'External spool (EXT) · ':'' )+'File filament '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grammi'),input('Additional waste (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options),select('Filament feed',k+'Alimentazione',[['','Not specified'],['AMS','AMS'],['EXT','External spool (EXT)']]),...(m.Alimentazione==='AMS'?[select('Identical AMS backup spool',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>Backup requires a second identical spool with filament remaining. Enable automatic switching on the printer too.</small>'+(primary?btn('Add identical spool','backupSpool:'+j+':'+i):'<p>Select the primary spool first.</p>')+(!compatible.length?'<p role="status">No matching spool available in inventory.</p>':'')+'':'')+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
  return '<fieldset class="parte-stampa"><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+btn('Delete part','rmPart:'+j)+'</div></fieldset>';
 }
@@ -243,7 +244,15 @@ function esportaCsv(tipo){
 function spools(){
  return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+btn('Print spool inventory','print:bobine')+btn('CSV filaments','csv:bobine')+btn(nascondiEsaurite?'Show empty spools':'Hide empty spools','toggleEmpty')+data.bobine.filter(b=>!nascondiEsaurite||residuo(b)>0).map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})+' g remaining · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
 }
-function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+'</div>').join('')+'</section>'}
+
+function eliminaPreventivo(db,target){
+ const index=db.preventivi.findIndex(p=>target.Numero?p.Numero===target.Numero:p.Titolo===target.Titolo&&p.Data===target.Data);
+ if(index<0)throw Error('The quote was already removed. Refresh the archive.');
+ assegnaNumeri(db);
+ db.preventivi.splice(index,1);
+}
+
+function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+btn('Delete quote','deleteQuote:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Electricity rate (€/kWh)','Tariffa']];
 const costFields=[
  ['Repair budget (€)','BudgetRiparazioni'],['Hours covered by budget','BudgetOre'],
@@ -341,14 +350,15 @@ function dataCalendario(value){
  const match=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
  return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):'';
 }
-function spoolForm(existing){
+function spoolForm(existing,modello=null,onCreated=null){
+ const initial=existing??(modello?{...modello,Data:'',Lordo:n(modello.Acquistato)+n(modello.Tara)}:null);
  const dialog=document.createElement('dialog');
  const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Densita','Density (g/cm³, optional)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Iva','Purchase VAT (%)'],['Note','Notes']];
  const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Edit spool':'New spool')+'</h2>'+fields(props.map(([k,l])=>{
   const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
-  return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(existing?.[k]):existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
- }))+'<label>Price type<select name="PrezzoIvato"><option value="true" '+(!existing||existing.PrezzoIvato===true?'selected':'')+'>VAT included</option><option value="false" '+(existing&&existing.PrezzoIvato!==true?'selected':'')+'>VAT excluded</option></select></label>'+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
+  return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(initial?.[k]):initial?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
+ }))+'<label>Price type<select name="PrezzoIvato"><option value="true" '+(!initial||initial.PrezzoIvato===true?'selected':'')+'>VAT included</option><option value="false" '+(initial&&initial.PrezzoIvato!==true?'selected':'')+'>VAT excluded</option></select></label>'+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
  
  let pesoAcquistatoManuale=!!existing;
@@ -374,7 +384,9 @@ function spoolForm(existing){
   try{
    if(b.Densita!==null&&(!Number.isFinite(b.Densita)||b.Densita<=0))throw Error('Enter a positive density or leave it empty.');
    if(b.Lordo<b.Tara||b.Acquistato<=0||b.Diametro<=0)throw Error('Check gross weight, tare, purchased weight and diameter.');
-   await save(d=>{if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Spool removed.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
+   let createdId=null;
+   await save(d=>{if(!existing)createdId=d.prossimo;if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Spool removed.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
+   if(onCreated&&createdId!==null)onCreated(data.bobine.find(b=>b.Id===createdId));
    dialog.close();render();msg('Spools saved.');
   }catch(err){dialog.querySelector('.error').textContent=err.message}
  };
@@ -522,7 +534,7 @@ $('#view').addEventListener('change',async e=>{
    set(p,el.value);
    if(p.endsWith('.Bobina')||p.endsWith('.Alimentazione')){const prefix=p.slice(0,p.lastIndexOf('.')+1);set(prefix+'Riserva','')}
    if(p==='Profilo'){const m=data.profili.find(x=>x.nome===el.value);if(m)applyProfile(m)}
-   if(p.endsWith('.Bobina')){const b=data.bobine.find(x=>id(x.Id)===el.value);if(b){const key=p.slice(0,-6);set(key+'Nome',b.Materiale+' · '+b.Colore);set(key+'Prezzo',n(b.Prezzo)*1000/n(b.Acquistato))}}
+   if(p.endsWith('.Bobina')){const b=data.bobine.find(x=>id(x.Id)===el.value);if(b){const key=p.slice(0,-6);set(key+'Nome',b.Materiale+' · '+b.Colore);set(key+'Prezzo',prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))}}
    render();
   }
   if(el.dataset.component!==undefined&&el.value!==''){
@@ -596,7 +608,22 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'comp':q.Componenti.push({Nome:'',Quantita:1,Prezzo:0,Iva:22,PrezzoIvato:true,DataAcquisto:'',Fornitore:'',Codice:''});break;
    case 'rmComp':q.Componenti.splice(n(i),1);break;
+   case 'deleteQuote':{
+    const target=data.preventivi[n(i)];
+    if(!target||!confirm('Permanently delete this quote? '+numeroPreventivo(target.Numero)+' · '+target.Titolo))return;
+    await save(db=>eliminaPreventivo(db,target));
+    if(q.Numero===target.Numero&&target.Numero||originalQuote&&originalQuote.Titolo===target.Titolo&&originalQuote.Data===target.Data){q=fresh();originalQuote=null}
+    msg('Quote deleted.');break;
+   }
    case 'open':originalQuote=data.preventivi[n(i)];q={...fresh(),...structuredClone(originalQuote)};tab='quote';break;
+   case 'backupSpool':{
+    const material=p.Materiali[n(j)];
+    const primary=data.bobine.find(b=>id(b.Id)===material.Bobina);
+    if(!primary)throw Error('Select the primary spool first.');
+    spoolForm(null,primary,created=>{
+     if(stessaBobina(primary,created)){material.Riserva=id(created.Id);material.Alimentazione='AMS'}
+    });return;
+   }
    case 'spool':spoolForm(data.bobine.find(b=>b.Id===n(i)));return;
    case 'rmSpool':if(confirm('Delete spool '+id(i)+'?'))await save(d=>d.bobine=d.bobine.filter(b=>b.Id!==n(i)));break;
    case 'rmPrinter':{
