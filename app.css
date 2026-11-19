@@ -34,3 +34,7 @@ dialog{width:min(820px,calc(100% - 24px))}
 .parametri-stampante[open] summary{margin-bottom:16px}
 button[data-action^="rmPart:"]{border:2px solid #a33c47;color:#8f2632;font-weight:700}
 @media(max-width:540px){.parte-stampa{padding:14px;margin:28px 0}.parte-stampa legend{font-size:1.15rem}}
+
+.parte-stampa>.fields>.nome-file-esteso{grid-column:1 / -1;font-size:1.15rem}
+.nome-file-esteso input{width:100%;min-height:62px;padding:14px 16px;font-size:1.22rem;font-weight:650;line-height:1.4}
+@media(max-width:540px){.nome-file-esteso input{min-height:58px;font-size:1.1rem}}
