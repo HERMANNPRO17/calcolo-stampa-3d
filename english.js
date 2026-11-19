@@ -86,8 +86,8 @@ function prezzoNetto(prezzo,iva,inclusa){return n(prezzo)/(inclusa?1+n(iva)/100:
 const tipiFilamento=['PLA','PLA+','PLA Matte','PLA Silk','PLA-CF','PETG','PETG HF','PETG-CF','TPU 95A','TPU 85A','TPE','ABS','ABS+','ASA','ASA-CF','PA6','PA12','PA-CF','PA-GF','PC','PC-ABS','PCTG','PET','PVA','BVOH','HIPS','PP','PEI','PEEK'];
 function articoli(tipo){
  const items=[...(data.catalogo??[]).filter(x=>x.tipo===tipo)];
- if(tipo==='componente')for(const p of data.preventivi)for(const c of p.Componenti??[])items.push({tipo,Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',Prezzo:c.Prezzo,Iva:c.Iva??0,PrezzoIvato:c.PrezzoIvato??false});
- if(tipo==='ricambio')for(const p of data.profili)for(const r of p.Usura??[])items.push({tipo,Nome:r.nome,Codice:r.codice??'',Fornitore:r.fornitore??'',Prezzo:r.prezzo,Iva:r.iva??0,PrezzoIvato:r.prezzoIvato??false,Ore:r.ore});
+ if(tipo==='componente')for(const p of data.preventivi)for(const c of p.Componenti??[])items.push({tipo,Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',DataAcquisto:c.DataAcquisto??'',Prezzo:c.Prezzo,Iva:c.Iva??0,PrezzoIvato:c.PrezzoIvato??false});
+ if(tipo==='ricambio')for(const p of data.profili)for(const r of p.Usura??[])items.push({tipo,Nome:r.nome,Codice:r.codice??'',Fornitore:r.fornitore??'',DataAcquisto:r.dataAcquisto??'',Prezzo:r.prezzo,Iva:r.iva??0,PrezzoIvato:r.prezzoIvato??false,Ore:r.ore});
  const unique=new Map();for(const x of items)if(x.Nome)unique.set([x.Nome,x.Codice,x.Fornitore].join('|'),x);
  return [...unique.values()];
 }
@@ -120,7 +120,7 @@ function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
-  '<fieldset><legend>Extra components</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
+  '<fieldset><legend>Consumables</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
   '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('New quote','new')+'</div></section>';
 }
@@ -153,7 +153,7 @@ function showTotal(x){
  $('#total').innerHTML='<p><strong>Production cost: '+euro(x.productionCost)+'</strong> · '+euro(x.productionUnit)+' per finished product<br><small>Internal use, before markup and VAT</small></p><div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per finished product · VAT '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
 }
 function spools(){
- return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB')+' g remaining · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
+ return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+btn('Print spool inventory','print:bobine')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB')+' g remaining · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
 }
 function archive(){return '<section class="card"><h2>Saved quotes</h2>'+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Electricity rate (€/kWh)','Tariffa']];
@@ -228,7 +228,18 @@ function printerForm(existing){
  };
  dialog.showModal();
 }
-function settings(){return '<section class="card"><h2>Printers</h2>'+btn('Add printer','printer',true)+data.profili.map((p,i)=>'<div class="row"><strong>'+esc(p.nome)+'</strong><p>'+esc(p.Watt)+' W printer · '+esc(p.WattAms)+' W Additional AMS · '+euro(p.Acquisto)+' purchase · '+esc(p.Vita)+' hours of useful life · '+euro(maintenance(p))+'/h maintenance'+(p.Tariffa==null?'':' · '+esc(p.Tariffa)+' €/kWh')+'</p>'+btn('Edit printer','printer:'+i)+btn('Delete profile','rmPrinter:'+i)+'</div>').join('')+'</section><section class="card"><h2>Backup and data transfer</h2> <p>'+btn('Download backup','backup')+'</p><label>Restore a backup<input id="restore" type="file" accept=".json"></label><label>Select bobine.json, profili.json and quote JSON files<input id="legacy" type="file" multiple accept=".json"></label><p>Windows data is in the folder %LOCALAPPDATA%\\CalcoloStampa3D.</p></section>'}
+
+function stampaElenco(tipo){
+ const bobine=tipo==='bobine',titolo= bobine?'Spool inventory':tipo==='ricambio'?'Spare parts list':'Consumables list';
+ const headers=bobine?['ID','Brand','Filament','Colour','Code','Supplier','Purchase date','Gross g','Tare g','Net g','Purchase price','IVA %','Price type']:['Item','Code','Supplier','Purchase date','Unit price','IVA %','Price type'];
+ const tipoPrezzo=v=>v?'VAT included':'VAT excluded';
+ const rows=bobine?data.bobine.map(b=>[id(b.Id),b.Produttore,b.Materiale,b.Colore,b.Codice,b.Fornitore,b.Data,b.Lordo,b.Tara,n(b.Lordo)-n(b.Tara),euro(b.Prezzo),b.Iva??0,tipoPrezzo(b.PrezzoIvato===true)]):articoli(tipo).map(a=>[a.Nome,a.Codice,a.Fornitore,a.DataAcquisto,euro(a.Prezzo),a.Iva??0,tipoPrezzo(a.PrezzoIvato===true)]);
+ const html='<!doctype html><html lang="en"><meta charset="utf-8"><title>'+titolo+'</title><style>body{font:13px system-ui;color:#14243c;margin:24px}table{width:100%;border-collapse:collapse}th,td{padding:7px;text-align:left;border-bottom:1px solid #ccd5e2}th{background:#edf2fa}button{padding:10px}@media print{button{display:none}@page{size:landscape;margin:12mm}thead{display:table-header-group}tr{break-inside:avoid}}</style><h1>'+titolo+'</h1><p>'+new Date().toLocaleDateString('en-GB')+' · '+rows.length+' items</p><button onclick="window.print()">Print / Save PDF</button><table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v??'')+'</td>').join('')+'</tr>').join('')+'</tbody></table></html>';
+ const page=window.open('','_blank');if(!page)throw Error('Allow the print window to open in your browser.');
+ page.document.open();page.document.write(html);page.document.close();
+}
+
+function settings(){return '<section class="card"><h2>Printable lists</h2><div class="actions">'+btn('Spools','print:bobine')+btn('Spare parts','print:ricambio')+btn('Consumables','print:componente')+'</div></section>'+ '<section class="card"><h2>Printers</h2>'+btn('Add printer','printer',true)+data.profili.map((p,i)=>'<div class="row"><strong>'+esc(p.nome)+'</strong><p>'+esc(p.Watt)+' W printer · '+esc(p.WattAms)+' W Additional AMS · '+euro(p.Acquisto)+' purchase · '+esc(p.Vita)+' hours of useful life · '+euro(maintenance(p))+'/h maintenance'+(p.Tariffa==null?'':' · '+esc(p.Tariffa)+' €/kWh')+'</p>'+btn('Edit printer','printer:'+i)+btn('Delete profile','rmPrinter:'+i)+'</div>').join('')+'</section><section class="card"><h2>Backup and data transfer</h2> <p>'+btn('Download backup','backup')+'</p><label>Restore a backup<input id="restore" type="file" accept=".json"></label><label>Select bobine.json, profili.json and quote JSON files<input id="legacy" type="file" multiple accept=".json"></label><p>Windows data is in the folder %LOCALAPPDATA%\\CalcoloStampa3D.</p></section>'}
 function render(){
  $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori());
  for(const b of document.querySelectorAll('[data-tab]')){if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}
@@ -408,6 +419,7 @@ $('#view').addEventListener('click',async e=>{
     a.download='calcolo-stampa-3d-backup.json';a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);return;
    }
+   case 'print':stampaElenco(i);return;
    case 'calc':showTotal(costs());return;
    case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
    case 'save':{
@@ -423,7 +435,7 @@ $('#view').addEventListener('click',async e=>{
    case 'remember':{
     const c=q.Componenti[n(i)];
     if(!c.Nome?.trim()||!Number.isFinite(n(c.Prezzo))||n(c.Prezzo)<0||n(c.Iva)<0||n(c.Iva)>100)throw Error('Check item name, price and purchase VAT.');
-    await save(d=>memorizzaArticolo(d,{tipo:'componente',Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',Prezzo:n(c.Prezzo),Iva:n(c.Iva??0),PrezzoIvato:c.PrezzoIvato===true||c.PrezzoIvato==='true'}));
+    await save(d=>memorizzaArticolo(d,{tipo:'componente',Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',DataAcquisto:c.DataAcquisto??'',Prezzo:n(c.Prezzo),Iva:n(c.Iva??0),PrezzoIvato:c.PrezzoIvato===true||c.PrezzoIvato==='true'}));
     msg('Item saved to the menu.');break;
    }
    case 'comp':q.Componenti.push({Nome:'',Quantita:1,Prezzo:0,Iva:22,PrezzoIvato:true,DataAcquisto:'',Fornitore:'',Codice:''});break;
