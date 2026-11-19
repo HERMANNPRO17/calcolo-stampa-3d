@@ -33,7 +33,17 @@ async function save(change){
  localStorage.setItem(storageKey,JSON.stringify(next));
  data=next;
 }
-function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(value(path))+'"></label>'}
+
+function stileColore(value){
+ let hex=String(value??'').trim();
+ if(/^#[0-9a-f]{3}$/i.test(hex))hex='#'+[...hex.slice(1)].map(c=>c+c).join('');
+ if(!/^#[0-9a-f]{6}$/i.test(hex))return '';
+ const channels=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(c=>c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4));
+ const luminance=channels[0]*0.2126+channels[1]*0.7152+channels[2]*0.0722;
+ return 'background-color:'+hex+';color:'+(luminance>0.179?'#000000':'#FFFFFF')+';font-weight:600';
+}
+
+function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(value(path))+'"></label>'}
 const fields=items=>'<div class="fields">'+items.join('')+'</div>';
 const btn=(label,action,primary=false)=>'<button type="button" data-action="'+action+'" '+(primary?'class="primary"':'')+'>'+label+'</button>';
 function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path)??(path.endsWith('.PrezzoIvato')?false:''))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
@@ -401,6 +411,7 @@ async function legacy(files){
 }
 $('#view').addEventListener('input',e=>{const el=e.target,p=el.dataset.bind;if(p&&el.tagName!=='SELECT'){
  set(p,el.value);
+ if(p.endsWith('.Colore'))el.style.cssText=stileColore(el.value);
  if(['Watt','WattAms','Acquisto','Vita','Tariffa'].includes(p)){
   for(const el of document.querySelectorAll('[data-printer-summary]'))el.querySelector('span').innerHTML=datiStampante([...q.StampeAggiuntive,q][n(el.dataset.printerSummary)]);
  }
