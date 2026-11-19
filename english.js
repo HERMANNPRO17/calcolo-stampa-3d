@@ -33,13 +33,13 @@ async function save(change){
  localStorage.setItem(storageKey,JSON.stringify(next));
  data=next;
 }
-function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" type="'+type+'" '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(value(path))+'"></label>'}
+function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(value(path))+'"></label>'}
 const fields=items=>'<div class="fields">'+items.join('')+'</div>';
 const btn=(label,action,primary=false)=>'<button type="button" data-action="'+action+'" '+(primary?'class="primary"':'')+'>'+label+'</button>';
-function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
+function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path)??(path.endsWith('.PrezzoIvato')?false:''))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
 const machine=[['Average power (W)','Watt'],['Additional AMS (W)','WattAms'],['Printer purchase price (€)','Acquisto'],['Useful life (h)','Vita']];
 function maintenance(m){
- const ricambi=(m.Usura??[]).reduce((total,r)=>total+n(r.prezzo)/n(r.ore),0);
+ const ricambi=(m.Usura??[]).reduce((total,r)=>total+prezzoNetto(r.prezzo,r.iva,r.prezzoIvato===true||r.prezzoIvato==='true')/n(r.ore),0);
  return ricambi+(n(m.BudgetOre)>0?n(m.BudgetRiparazioni)/n(m.BudgetOre):0);
 }
 function ammortamento(m){
@@ -81,6 +81,28 @@ function datiStampante(p){
  const m=p.Macchina??q;
  return esc(m.nome??q.Profilo)+' · '+esc(m.Watt)+' W (printer) · '+esc(m.WattAms)+' W (AMS) · '+euro(m.Acquisto)+' (purchase) · '+esc(m.Vita)+' h · '+esc(m.Tariffa??q.Tariffa)+' €/kWh';
 }
+
+function prezzoNetto(prezzo,iva,inclusa){return n(prezzo)/(inclusa?1+n(iva)/100:1)}
+const tipiFilamento=['PLA','PLA+','PLA Matte','PLA Silk','PLA-CF','PETG','PETG HF','PETG-CF','TPU 95A','TPU 85A','TPE','ABS','ABS+','ASA','ASA-CF','PA6','PA12','PA-CF','PA-GF','PC','PC-ABS','PCTG','PET','PVA','BVOH','HIPS','PP','PEI','PEEK'];
+function articoli(tipo){
+ const items=[...(data.catalogo??[]).filter(x=>x.tipo===tipo)];
+ if(tipo==='componente')for(const p of data.preventivi)for(const c of p.Componenti??[])items.push({tipo,Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',Prezzo:c.Prezzo,Iva:c.Iva??0,PrezzoIvato:c.PrezzoIvato??false});
+ if(tipo==='ricambio')for(const p of data.profili)for(const r of p.Usura??[])items.push({tipo,Nome:r.nome,Codice:r.codice??'',Fornitore:r.fornitore??'',Prezzo:r.prezzo,Iva:r.iva??0,PrezzoIvato:r.prezzoIvato??false,Ore:r.ore});
+ const unique=new Map();for(const x of items)if(x.Nome)unique.set([x.Nome,x.Codice,x.Fornitore].join('|'),x);
+ return [...unique.values()];
+}
+function fornitori(){
+ return [...new Set([...data.bobine.map(b=>b.Fornitore),...articoli('componente').map(c=>c.Fornitore),...articoli('ricambio').map(c=>c.Fornitore)].filter(Boolean))].sort();
+}
+function suggerimenti(id,values){return '<datalist id="'+id+'">'+values.map(v=>'<option value="'+esc(v)+'">').join('')+'</datalist>'}
+function menuArticoli(tipo,attribute){
+ return '<label>Recall item<select '+attribute+'><option value="">Choose a saved item</option>'+articoli(tipo).map((a,i)=>'<option value="'+i+'">'+esc([a.Nome,a.Codice,a.Fornitore].filter(Boolean).join(' · '))+'</option>').join('')+'</select></label>';
+}
+function memorizzaArticolo(d,a){
+ d.catalogo??=[];const key=x=>[x.tipo,x.Nome,x.Codice??'',x.Fornitore??''].join('|');
+ d.catalogo=d.catalogo.filter(x=>key(x)!==key(a));d.catalogo.push(a);
+}
+
 function printEditor(p,j){
  const prefix=j===q.StampeAggiuntive.length?'':'StampeAggiuntive.'+j+'.';
  const machines=[['','Quote’s default printer'],...data.profili.map(m=>[m.nome,m.nome])];
@@ -98,7 +120,7 @@ function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
-  '<fieldset><legend>Extra components</legend>'+q.Componenti.map((c,i)=>fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
+  '<fieldset><legend>Extra components</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)).join('')+btn('Add component','comp')+'</fieldset>'+
   '<fieldset><legend>Default printer costs and labour</legend>'+fields([...machine,['Electricity (€/kWh)','Tariffa'],['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Summary</h2><div id="total"></div><div class="actions">'+btn('Calculate','calc')+btn('Save quote','save',true)+btn(q.Numero?'Export quote':'Save and export','export')+btn('New quote','new')+'</div></section>';
 }
@@ -116,7 +138,7 @@ function costs(check=true){
   return [(p.Origine||'Part '+(i+1))+' · '+(m.nome??q.Profilo),pieces*rep,stampa,p.Foto,costiInterni];
  });
  const costoEsercizio=lines.reduce((s,r)=>s+r[4],0);
- for(const c of q.Componenti)lines.push([c.Nome+(c.Codice?' · Code '+c.Codice:''),n(c.Quantita),n(c.Prezzo)*n(c.Quantita)]);
+ for(const c of q.Componenti)lines.push([c.Nome+(c.Codice?' · Code '+c.Codice:''),n(c.Quantita),prezzoNetto(c.Prezzo,c.Iva,c.PrezzoIvato===true||c.PrezzoIvato==='true')*n(c.Quantita)]);
  if(n(q.Lavoro))lines.push(['Setup',q.Lavoro+' min',n(q.Lavoro)*n(q.Paga)/60]);
  if(n(q.PostMinuti))lines.push(['Cleaning and finishing',q.PostMinuti+' min',n(q.PostMinuti)*n(q.PostTariffa)/60]);
  if(n(q.Altro))lines.push(['Other costs','',n(q.Altro)]);
@@ -131,7 +153,7 @@ function showTotal(x){
  $('#total').innerHTML='<p><strong>Production cost: '+euro(x.productionCost)+'</strong> · '+euro(x.productionUnit)+' per finished product<br><small>Internal use, before markup and VAT</small></p><div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per finished product · VAT '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
 }
 function spools(){
- return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB')+' g remaining · '+euro(n(b.Prezzo)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
+ return '<section class="card"><h2>Spools</h2>'+btn('New spool','spool')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Code '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('en-GB')+' g remaining · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Edit','spool:'+b.Id)+btn('Delete','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
 }
 function archive(){return '<section class="card"><h2>Saved quotes</h2>'+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Electricity rate (€/kWh)','Tariffa']];
@@ -153,26 +175,35 @@ function printerForm(existing){
  ])+'<fieldset><legend>Repair budget and depreciation</legend>'+fields(costFields.map(([label,key])=>'<label>'+label+'<input type="number" min="0" step="any" required name="'+key+'" value="'+esc(existing?.[key]??0)+'"></label>'))+'<p>Use the repair budget for work not covered by the parts listed below. Enter book value, improvements and remaining hours to recalculate depreciation.</p></fieldset><fieldset><legend>Maintenance and spare parts</legend><div data-usura></div><button type="button" data-add-usura>Add part or service</button><p><output></output> maintenance per print hour</p></fieldset><p>Use average power during printing. Enter additional AMS power only if measured separately.</p><p role="alert"></p><div class="actions"><button class="primary">Save printer</button><button type="button">Cancel</button></div></form>';
  document.body.append(dialog);
  const form=dialog.querySelector('form');
- const usura=form.querySelector('[data-usura]');
- const leggiUsura=()=>Array.from(usura.children,row=>({nome:row.querySelector('[data-nome]').value.trim(),codice:row.querySelector('[data-codice]').value.trim(),prezzo:n(row.querySelector('[data-prezzo]').value),ore:n(row.querySelector('[data-ore]').value)}));
+ const usura=form.querySelector('[data-usura]');form.insertAdjacentHTML('beforeend',suggerimenti('fornitori-ricambi',fornitori()));
+ const leggiUsura=()=>Array.from(usura.children,row=>({fornitore:row.querySelector('[data-fornitore]').value.trim(),dataAcquisto:row.querySelector('[data-data]').value,iva:n(row.querySelector('[data-iva]').value),nome:row.querySelector('[data-nome]').value.trim(),codice:row.querySelector('[data-codice]').value.trim(),prezzoIvato:row.querySelector('[data-prezzo-ivato]').value==='true',prezzo:n(row.querySelector('[data-prezzo]').value),ore:n(row.querySelector('[data-ore]').value)}));
  const aggiornaUsura=()=>{
   const righe=leggiUsura().filter(r=>r.ore>0);
   form.querySelector('output').textContent=euro(maintenance({Usura:righe,BudgetRiparazioni:form.elements.BudgetRiparazioni.value,BudgetOre:form.elements.BudgetOre.value}));
  };
  function aggiungiUsura(r={}){
   const row=document.createElement('div');row.className='row';
-  row.innerHTML=fields([
+  row.innerHTML=menuArticoli('ricambio','data-recall')+fields([
    '<label>Part or service<input required data-nome value="'+esc(r.nome??'')+'"></label>',
    '<label>Item code<input data-codice value="'+esc(r.codice??'')+'"></label>',
+   '<label>Supplier<input data-fornitore list="fornitori-ricambi" value="'+esc(r.fornitore??'')+'"></label>',
+   '<label>Purchase date<input data-data type="date" value="'+esc(r.dataAcquisto??'')+'"></label>',
+   '<label>Purchase VAT (%)<input data-iva type="number" min="0" max="100" step="any" value="'+esc(r.iva??22)+'"></label>',
+   '<label>Price type<select data-prezzo-ivato><option value="true" '+(r.prezzoIvato!==false?'selected':'')+'>VAT included</option><option value="false" '+(r.prezzoIvato===false?'selected':'')+'>VAT excluded</option></select></label>',
    '<label>Cost (€)<input type="number" min="0" step="any" required data-prezzo value="'+esc(r.prezzo??'')+'"></label>',
    '<label>Interval (hours)<input type="number" min="0.01" step="any" required data-ore value="'+esc(r.ore??'')+'"></label>'
   ])+'<button type="button">Remove spare part</button>';
+  row.querySelector('[data-recall]').onchange=e=>{
+   const a=articoli('ricambio')[n(e.target.value)];if(e.target.value===''||!a)return;
+   for(const [key,v] of Object.entries({nome:a.Nome,codice:a.Codice,fornitore:a.Fornitore,prezzo:a.Prezzo,ore:a.Ore,iva:a.Iva??0,'prezzo-ivato':String(a.PrezzoIvato??false)}))row.querySelector('[data-'+key+']').value=v??'';
+   row.querySelector('[data-data]').value='';aggiornaUsura();
+  };
   row.querySelector('button').onclick=()=>{row.remove();aggiornaUsura()};
   usura.append(row);aggiornaUsura();
  }
  form.querySelector('[data-add-usura]').onclick=()=>aggiungiUsura();
  form.addEventListener('input',aggiornaUsura);
- for(const r of existing?.Usura??[])aggiungiUsura(r);
+ for(const r of existing?.Usura??[])aggiungiUsura({...r,prezzoIvato:r.prezzoIvato??false});
  aggiornaUsura();
  dialog.querySelector('.actions button[type=button]').onclick=()=>dialog.close();
  dialog.addEventListener('close',()=>dialog.remove());
@@ -190,6 +221,7 @@ function printerForm(existing){
     if(d.profili.some(p=>p.nome!==existing?.nome&&p.nome.toLocaleLowerCase('it')===nome.toLocaleLowerCase('it')))throw Error('A printer with that name already exists.');
     if(existing)d.profili=d.profili.filter(p=>p.nome!==existing.nome);
     d.profili.push(profile);
+    for(const r of profile.Usura)memorizzaArticolo(d,{tipo:'ricambio',Nome:r.nome,Codice:r.codice,Fornitore:r.fornitore,Prezzo:r.prezzo,Iva:r.iva,PrezzoIvato:r.prezzoIvato,Ore:r.ore});
    });
    q.Profilo=nome;applyProfile(profile);dialog.close();render();msg('Profile saved and selected in the quote.');
   }catch(err){dialog.querySelector('[role=alert]').textContent=err.message}
@@ -198,17 +230,17 @@ function printerForm(existing){
 }
 function settings(){return '<section class="card"><h2>Printers</h2>'+btn('Add printer','printer',true)+data.profili.map((p,i)=>'<div class="row"><strong>'+esc(p.nome)+'</strong><p>'+esc(p.Watt)+' W printer · '+esc(p.WattAms)+' W Additional AMS · '+euro(p.Acquisto)+' purchase · '+esc(p.Vita)+' hours of useful life · '+euro(maintenance(p))+'/h maintenance'+(p.Tariffa==null?'':' · '+esc(p.Tariffa)+' €/kWh')+'</p>'+btn('Edit printer','printer:'+i)+btn('Delete profile','rmPrinter:'+i)+'</div>').join('')+'</section><section class="card"><h2>Backup and data transfer</h2> <p>'+btn('Download backup','backup')+'</p><label>Restore a backup<input id="restore" type="file" accept=".json"></label><label>Select bobine.json, profili.json and quote JSON files<input id="legacy" type="file" multiple accept=".json"></label><p>Windows data is in the folder %LOCALAPPDATA%\\CalcoloStampa3D.</p></section>'}
 function render(){
- $('#view').innerHTML={quote,spools,archive,settings}[tab]();
+ $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori());
  for(const b of document.querySelectorAll('[data-tab]')){if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}
 }
 function spoolForm(existing){
  const dialog=document.createElement('dialog');
- const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Note','Notes']];
- const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro'];
+ const props=[['Produttore','Brand'],['Materiale','Filament type'],['Colore','Colour'],['Fornitore','Supplier'],['Diametro','Diameter (mm)'],['Codice','Item code'],['Lotto','Batch'],['Data','Purchase date'],['Acquistato','Purchased net weight (g)'],['Lordo','Current gross weight (g)'],['Tara','Tare (g)'],['Prezzo','Price per spool (€)'],['Iva','Purchase VAT (%)'],['Note','Notes']];
+ const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Edit spool':'New spool')+'</h2>'+fields(props.map(([k,l])=>{
-  const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?['PLA','PETG','TPU','ASA','ABS']:[]),...data.bobine.map(b=>b[k]).filter(Boolean)])]:[];
+  const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
   return '<label>'+l+'<input name="'+k+'" value="'+esc(existing?.[k]??(k==='Diametro'?1.75:''))+'" '+(numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
- }))+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
+ }))+'<label>Price type<select name="PrezzoIvato"><option value="true" '+(!existing||existing.PrezzoIvato===true?'selected':'')+'>VAT included</option><option value="false" '+(existing&&existing.PrezzoIvato!==true?'selected':'')+'>VAT excluded</option></select></label>'+(existing?'':'<label>Identical spools<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Remaining net weight: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Save</button><button type="button">Cancel</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
  const update=()=>dialog.querySelector('output').textContent=(n(form.Lordo.value)-n(form.Tara.value)).toLocaleString('en-GB')+' g';
  form.addEventListener('input',update);update();
@@ -216,13 +248,24 @@ function spoolForm(existing){
  dialog.addEventListener('close',()=>dialog.remove());
  form.onsubmit=async e=>{
   e.preventDefault();const b=Object.fromEntries(new FormData(form)),qty=n(b.quantita||1);delete b.quantita;
-  numeric.forEach(k=>b[k]=n(b[k]));
+  numeric.forEach(k=>b[k]=n(b[k]));b.PrezzoIvato=b.PrezzoIvato==='true';
   try{
    if(b.Lordo<b.Tara||b.Acquistato<=0||b.Diametro<=0)throw Error('Check gross weight, tare, purchased weight and diameter.');
    await save(d=>{if(existing){const i=d.bobine.findIndex(x=>x.Id===existing.Id);if(i<0)throw Error('Spool removed.');d.bobine[i]={...b,Id:existing.Id}}else for(let i=0;i<qty;i++)d.bobine.push({...b,Id:d.prossimo++})});
    dialog.close();render();msg('Spools saved.');
   }catch(err){dialog.querySelector('.error').textContent=err.message}
  };
+
+ if(!existing&&data.bobine.length){
+  const label=document.createElement('label');label.innerHTML='Recall a purchased filament<select><option value="">New item</option>'+data.bobine.map((b,i)=>'<option value="'+i+'">'+esc([b.Produttore,b.Materiale,b.Colore,b.Codice].filter(Boolean).join(' · '))+'</option>').join('')+'</select>';
+  form.prepend(label);
+  label.querySelector('select').onchange=e=>{
+   if(e.target.value==='')return;const b=data.bobine[n(e.target.value)];
+   for(const k of ['Produttore','Materiale','Colore','Fornitore','Diametro','Codice','Acquistato','Tara','Prezzo','Iva','Note'])if(form.elements[k])form.elements[k].value=b[k]??'';
+   form.elements.Lordo.value=n(b.Acquistato)+n(b.Tara);form.elements.Data.value='';
+   form.elements.PrezzoIvato.value=String(b.PrezzoIvato===true);update();
+  };
+ }
  dialog.showModal();
 }
 async function salvaPreventivo(x){
@@ -331,6 +374,10 @@ $('#view').addEventListener('change',async e=>{
    if(p.endsWith('.Bobina')){const b=data.bobine.find(x=>id(x.Id)===el.value);if(b){const key=p.slice(0,-6);set(key+'Nome',b.Materiale+' · '+b.Colore);set(key+'Prezzo',n(b.Prezzo)*1000/n(b.Acquistato))}}
    render();
   }
+  if(el.dataset.component!==undefined&&el.value!==''){
+   const a=articoli('componente')[n(el.value)];
+   Object.assign(q.Componenti[n(el.dataset.component)],{Nome:a.Nome,Codice:a.Codice,Fornitore:a.Fornitore,Prezzo:a.Prezzo,Iva:a.Iva??0,PrezzoIvato:a.PrezzoIvato??false,DataAcquisto:''});render();return;
+  }
   if(el.dataset.photo!==undefined&&el.files.length){
    const parte=[...q.StampeAggiuntive,q][n(el.dataset.photo)];
    parte.Foto=await preparaFoto(el.files[0]);render();return;
@@ -373,7 +420,13 @@ $('#view').addEventListener('click',async e=>{
    case 'mat':p.Materiali.push(mat());break;
    case 'rmPhoto':delete p.Foto;break;
    case 'rmMat':p.Materiali.splice(n(j),1);break;
-   case 'comp':q.Componenti.push({Nome:'',Quantita:1,Prezzo:0});break;
+   case 'remember':{
+    const c=q.Componenti[n(i)];
+    if(!c.Nome?.trim()||!Number.isFinite(n(c.Prezzo))||n(c.Prezzo)<0||n(c.Iva)<0||n(c.Iva)>100)throw Error('Check item name, price and purchase VAT.');
+    await save(d=>memorizzaArticolo(d,{tipo:'componente',Nome:c.Nome,Codice:c.Codice??'',Fornitore:c.Fornitore??'',Prezzo:n(c.Prezzo),Iva:n(c.Iva??0),PrezzoIvato:c.PrezzoIvato===true||c.PrezzoIvato==='true'}));
+    msg('Item saved to the menu.');break;
+   }
+   case 'comp':q.Componenti.push({Nome:'',Quantita:1,Prezzo:0,Iva:22,PrezzoIvato:true,DataAcquisto:'',Fornitore:'',Codice:''});break;
    case 'rmComp':q.Componenti.splice(n(i),1);break;
    case 'open':originalQuote=data.preventivi[n(i)];q={...fresh(),...structuredClone(originalQuote)};tab='quote';break;
    case 'spool':spoolForm(data.bobine.find(b=>b.Id===n(i)));return;
