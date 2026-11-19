@@ -49,3 +49,10 @@ Open the app using the link above. Choose **English** in the navigation.
 [PolyForm Noncommercial License 1.0.0](LICENSE). Uso gratuito per finalità non commerciali. L’uso commerciale richiede un’autorizzazione separata.
 
 Free for noncommercial use. Commercial use requires separate permission.
+
+
+## Stampe multicolore / Multicolour prints
+
+Importa il G-code oppure il 3MF elaborato dallo slicer. Se sono presenti i pesi per filamento, ogni slot mantiene grammi e colore in una riga separata. Assegna bobina e prezzo a ciascuna riga. Se il G-code riporta soltanto il totale, usa un 3MF con i consumi per filamento oppure suddividi manualmente il totale. Verifica che gli scarti già inclusi nel peso esportato non vengano inseriti di nuovo come AMS extra.
+
+Import G-code or sliced 3MF. Per-filament weights and colours are kept in separate slot rows when available. Assign a spool and price to each row. For total-only G-code, use a 3MF with per-filament usage or split the total manually. Avoid adding waste already included in the exported weight again as extra AMS grams.
