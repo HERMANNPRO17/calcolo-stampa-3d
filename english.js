@@ -4,7 +4,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const euro=v=>Number(v).toLocaleString('en-GB',{style:'currency',currency:'EUR'});
 const n=v=>Number(String(v??'').replace(',','.'));
 const round=v=>Math.round((v+Number.EPSILON)*100)/100;
-const mat=()=>({Nome:'PLA',Grammi:0,Extra:0,Prezzo:0,Bobina:''});
+const mat=()=>({Nome:'PLA',Grammi:0,Extra:0,Prezzo:0,Bobina:'',Alimentazione:''});
 const part=()=>({Origine:'',Minuti:0,Pezzi:1,Ripetizioni:1,Materiali:[mat()]});
 const fresh=()=>({...part(),Titolo:'',Cliente:'',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
 const blank=()=>({prossimo:1,bobine:[],preventivi:[],profili:[]});
@@ -122,7 +122,7 @@ function printEditor(p,j){
   const k=prefix+'Materiali.'+i+'.';
   const options=[['','No spool'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara))+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Spool '+m.Bobina+' rimossa']);
-  return '<div class="row">'+(m.Slot?'<strong>Filament slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grams'),input('Additional AMS (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options)])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
+  return '<div class="row">'+(m.Slot?'<strong>Filament slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grams'),input('Additional waste (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options),select('Filament feed',k+'Alimentazione',[['','Not specified'],['AMS','AMS'],['EXT','External spool (EXT)']])])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
  return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
 }
@@ -143,7 +143,10 @@ function costs(check=true){
   const m=p.Macchina??q, tariffa=m.Tariffa??q.Tariffa;
   const ore=rep*time/60;
   const quotaAcquisto=n(m.Acquisto)/n(m.Vita);
-  const stampa=rep*film+ore*((n(m.Watt)+n(m.WattAms))*n(tariffa)/1000+quotaAcquisto);
+  const materialiUsati=p.Materiali.filter(f=>n(f.Grammi)+n(f.Extra)>0);
+  const soloEsterno=materialiUsati.length>0&&materialiUsati.every(f=>f.Alimentazione==='EXT');
+  const potenzaAms=soloEsterno?0:n(m.WattAms);
+  const stampa=rep*film+ore*((n(m.Watt)+potenzaAms)*n(tariffa)/1000+quotaAcquisto);
   const costiInterni=ore*(maintenance(m)+ammortamento(m)-quotaAcquisto);
   return [(p.Origine||'Part '+(i+1))+' · '+(m.nome??q.Profilo),pieces*rep,stampa,p.Foto,costiInterni];
  });
