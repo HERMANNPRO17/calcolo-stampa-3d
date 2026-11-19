@@ -57,7 +57,7 @@ function formattaCampi(root){
  }
 }
 
-function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(campiDueDecimali.has(path.split('.').at(-1))?formattaNumero(value(path)):value(path))+'"></label>'}
+function input(label,path,type='number'){return '<label'+(path.split('.').at(-1)==='Origine'?' class="nome-file-esteso"':'')+'>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(campiDueDecimali.has(path.split('.').at(-1))?formattaNumero(value(path)):value(path))+'"></label>'}
 const fields=items=>'<div class="fields">'+items.join('')+'</div>';
 const btn=(label,action,primary=false)=>'<button type="button" data-action="'+action+'" '+(primary?'class="primary"':'')+'>'+label+'</button>';
 function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path)??(path.endsWith('.PrezzoIvato')?false:''))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
