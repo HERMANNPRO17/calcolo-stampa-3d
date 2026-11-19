@@ -44,7 +44,7 @@ function stileColore(value){
 }
 
 
-const campiDueDecimali=new Set(['Grammi','Extra','Prezzo','Acquistato','Lordo','Tara','Tariffa','Acquisto','Paga','PostTariffa','Altro','BudgetRiparazioni','ValoreResiduo','Migliorie']);
+const campiDueDecimali=new Set(['Minuti','Grammi','Extra','Prezzo','Acquistato','Lordo','Tara','Tariffa','Acquisto','Paga','PostTariffa','Altro','BudgetRiparazioni','ValoreResiduo','Migliorie']);
 function formattaNumero(value){return Number.isFinite(n(value))?n(value).toFixed(2):value}
 function formattaCampi(root){
  for(const el of root.querySelectorAll('input')){
@@ -132,22 +132,34 @@ function printEditor(p,j){
  const machines=[['','Stampante del preventivo'],...data.profili.map(m=>[m.nome,m.nome])];
  if(p.Macchina&&!machines.some(([v])=>v===p.Macchina.nome))machines.push([p.Macchina.nome,p.Macchina.nome+' (da archivio)']);
  const machineSelect='<label>Stampante per questa parte<select data-machine="'+j+'">'+machines.map(([v,l])=>'<option value="'+esc(v)+'" '+(v===(p.Macchina?.nome??'')?'selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
+ const prefissoMacchina=p.Macchina?prefix+'Macchina.':'';
+ const parametriMacchina='<details class="parametri-stampante"><summary>Parametri stampante</summary>'+fields([...machine,['Energia (€/kWh)','Tariffa']].map(([label,key])=>input(label,prefissoMacchina+key)))+'</details>';
  const materials=p.Materiali.map((m,i)=>{
   const k=prefix+'Materiali.'+i+'.';
   const options=[['','Nessuna bobina'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara)).toFixed(2)+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Bobina '+m.Bobina+' rimossa']);
   return '<div class="row">'+(m.Slot?'<strong>Filamento slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filamento',k+'Nome','text'),input('Colore / HEX',k+'Colore','text'),input('Grammi',k+'Grammi'),input('Scarto extra (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Bobina',k+'Bobina',options),select('Alimentazione',k+'Alimentazione',[['','Da verificare'],['AMS','AMS'],['EXT','Bobina esterna (EXT)']])])+btn('Rimuovi filamento','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset><legend>Parte '+(j+1)+'</legend>'+fields([input('Nome o file',prefix+'Origine','text'),input('Durata (min)',prefix+'Minuti'),input('Pezzi per stampa',prefix+'Pezzi'),input('Ripetizioni',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Dati stampante usata per questo pezzo:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Foto del pezzo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Rimuovi foto','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Aggiungi filamento','mat:'+j)+btn('Registra consumo','consume:'+j)+(prefix?btn('Rimuovi parte','rmPart:'+j):'')+'</div></fieldset>';
+ return '<fieldset class="parte-stampa"><legend>Parte '+(j+1)+'</legend>'+fields([input('Nome o file',prefix+'Origine','text'),input('Durata (min)',prefix+'Minuti'),input('Pezzi per stampa',prefix+'Pezzi'),input('Ripetizioni',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Dati stampante usata per questo pezzo:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Foto del pezzo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Rimuovi foto','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Aggiungi filamento','mat:'+j)+btn('Registra consumo','consume:'+j)+btn('Elimina parte','rmPart:'+j)+'</div></fieldset>';
 }
 function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
-  '<fieldset><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)+'</div>').join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
-  '<fieldset><legend>Costi stampante predefinita e lavorazioni</legend>'+fields([...machine,['Energia (€/kWh)','Tariffa'],['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
+  '<fieldset class="settore-extra"><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)+'</div>').join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
+  '<fieldset class="settore-lavorazioni"><legend>Lavorazioni e prezzo</legend>'+fields([['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Riepilogo</h2><div id="total"></div><div class="actions">'+btn('Calcola','calc')+btn('Salva preventivo','save',true)+btn(q.Numero?'Esporta preventivo':'Salva ed esporta','export')+btn('Stampa / PDF','pdf',true)+btn('Nuovo preventivo','new')+'</div></section>';
 }
+
+function eliminaParte(index){
+ if(index<q.StampeAggiuntive.length){q.StampeAggiuntive.splice(index,1);return}
+ if(index!==q.StampeAggiuntive.length)return;
+ const sostituta=q.StampeAggiuntive.pop()??part();
+ for(const key of ['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione']){
+  if(Object.prototype.hasOwnProperty.call(sostituta,key))q[key]=sostituta[key];else delete q[key];
+ }
+}
+
 function costs(check=true){
  if(check&&(!q.Titolo.trim()||!Number.isInteger(n(q.ProdottiFiniti))||n(q.ProdottiFiniti)<1||n(q.Vita)<=0))throw Error('Controlla nome oggetto, prodotti finiti e vita della stampante.');
  const lines=[...q.StampeAggiuntive,q].map((p,i)=>{
@@ -508,7 +520,10 @@ $('#view').addEventListener('click',async e=>{
    }
    case 'new':if(confirm('Iniziare un nuovo preventivo?')){q=fresh();originalQuote=null;const m=data.profili.find(x=>x.nome===q.Profilo)??data.profili[0];if(m){q.Profilo=m.nome;applyProfile(m)}else q.Profilo='Stampante manuale'}break;
    case 'part':q.StampeAggiuntive.push(part());break;
-   case 'rmPart':q.StampeAggiuntive.splice(n(i),1);break;
+   case 'rmPart':{
+    if(!confirm('Eliminare questa parte stampata dal preventivo?'))return;
+    eliminaParte(n(i));break;
+   }
    case 'mat':p.Materiali.push(mat());break;
    case 'rmPhoto':delete p.Foto;break;
    case 'rmMat':p.Materiali.splice(n(j),1);break;
