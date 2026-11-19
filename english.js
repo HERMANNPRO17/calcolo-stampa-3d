@@ -112,9 +112,9 @@ function printEditor(p,j){
   const k=prefix+'Materiali.'+i+'.';
   const options=[['','No spool'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara))+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Spool '+m.Bobina+' rimossa']);
-  return '<div class="row">'+fields([input('Filament',k+'Nome','text'),input('Grams',k+'Grams'),input('Additional AMS (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options)])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
+  return '<div class="row">'+(m.Slot?'<strong>Filament slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grams'),input('Additional AMS (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options)])+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
+ return '<fieldset><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p><div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+btn('Record usage','consume:'+j)+(prefix?btn('Remove part','rmPart:'+j):'')+'</div></fieldset>';
 }
 function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
@@ -311,14 +311,28 @@ function exportQuote(x){
 }
 function gcode(text,name){
  const time=text.match(/total estimated time\s*:\s*([^;\r\n]+)/i)?.[1]??text.match(/^;\s*estimated printing time(?: \(normal mode\))?\s*[:=]\s*([^;\r\n]+)/im)?.[1]??'';
- const seconds=[...time.matchAll(/(\d+(?:\.\d+)?)\s*([dhms])/gi)].reduce((s,m)=>s+n(m[1])*({d:86400,h:3600,m:60,s:1}[m[2].toLowerCase()]),0);
- const types=(text.match(/^;\s*filament_type\s*=\s*([^\r\n]+)/im)?.[1]??'').split(';');
- const weights=(text.match(/^;\s*(?:total )?filament used \[g\]\s*[:=]\s*([\d., ]+)/im)?.[1]??'').split(',').map(n);
- const total=n(text.match(/^;\s*total filament weight \[g\]\s*[:=]\s*([\d.]+)/im)?.[1]);
- let material=weights.map((w,i)=>({...mat(),Nome:types[i]?.trim()||'Filament '+(i+1),Grammi:w})).filter(m=>m.Grammi>0);
- if(total>0&&Math.abs(total-material.reduce((s,m)=>s+m.Grammi,0))>.05)material=[{...mat(),Nome:types.length===1&&types[0].trim()||'Exported total',Grammi:total}];
- return {...part(),Origine:name,Minuti:seconds/60,Materiali:material.length?material:[mat()]};
+ const seconds=[...time.matchAll(/(\d+(?:\.\d+)?)\s*([dhms])/gi)].reduce((sum,m)=>sum+n(m[1])*({d:86400,h:3600,m:60,s:1}[m[2].toLowerCase()]),0);
+ const list=key=>{
+  const match=text.match(new RegExp('^;\\s*'+key+'\\s*[:=]\\s*([^\\r\\n]+)','im'));
+  return match?match[1].split(/[;,]/).map(v=>v.trim().replace(/^"|"$/g,'')):[];
+ };
+ const types=list('filament_type'),colors=list('filament_colou?r'),density=list('filament_density').map(n);
+ const weights=list('(?:total )?filament used \\[g\\]').map(n);
+ const totalWeights=list('total filament weight \\[g\\]').map(n);
+ const perFilament=weights.length?weights:totalWeights.length>1?totalWeights:[];
+ const total=totalWeights.length===1?totalWeights[0]:totalWeights.reduce((a,b)=>a+b,0);
+ let material=perFilament.map((g,i)=>({...mat(),Nome:types[i]||'Filament '+(i+1),Grammi:g,Slot:i+1,Colore:colors[i]??'',Densita:density[i]??null})).filter(m=>m.Grammi>0);
+ let warning='';
+ if(!material.length&&total>0){
+  material=[{...mat(),Nome:types.length===1?types[0]:'Exported total',Grammi:total,Slot:types.length===1?1:null,Colore:types.length===1?colors[0]??'':'',Densita:types.length===1?density[0]??null:null}];
+  if(types.length>1||colors.length>1)warning='The G-code contains only total weight. For automatic colour weights import the sliced 3MF, or split the total into colour rows manually.';
+ }else if(material.length&&total>0){
+  const sum=material.reduce((a,m)=>a+m.Grammi,0);
+  if(Math.abs(total-sum)>Math.max(0.1,material.length*0.02))warning='Per-filament weights differ from the exported total. Check all colour weights in the slicer before calculating or recording usage.';
+ }
+ return {...part(),Origine:name,Minuti:seconds/60,Materiali:material.length?material:[mat()],AvvisoImportazione:warning};
 }
+
 async function zipEntries(file){
  const v=new DataView(await file.arrayBuffer()), decoder=new TextDecoder();let end=v.byteLength-22;
  while(end>=Math.max(0,v.byteLength-65557)&&v.getUint32(end,true)!==0x06054b50)end--;
@@ -348,7 +362,7 @@ async function readFile(file){
   for(const p of xml.querySelectorAll('plate')){
    const get=k=>p.querySelector('metadata[key="'+k+'"]')?.getAttribute('value');
    const idx=get('index');if(!idx)continue;
-   const materials=[...p.querySelectorAll('filament')].map(f=>({...mat(),Nome:[f.getAttribute('type'),f.getAttribute('color')].filter(Boolean).join(' ')||'Filament',Grammi:n(f.getAttribute('used_g'))})).filter(m=>m.Grammi>0);
+   const materials=[...p.querySelectorAll('filament')].map(f=>({...mat(),Nome:[f.getAttribute('type'),f.getAttribute('color')].filter(Boolean).join(' ')||'Filament',Slot:n(f.getAttribute('id')),Colore:f.getAttribute('color')??'',Grammi:n(f.getAttribute('used_g'))})).filter(m=>m.Grammi>0);
    if(!materials.length&&n(get('weight'))>0)materials.push({...mat(),Nome:'Exported total',Grammi:n(get('weight'))});
    parts.set(idx,{...part(),Origine:file.name+' · Plate '+idx,Minuti:n(get('prediction'))/60,Materiali:materials});
   }
