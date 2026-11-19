@@ -252,7 +252,18 @@ function eliminaPreventivo(db,target){
  db.preventivi.splice(index,1);
 }
 
-function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+btn('Elimina preventivo','deleteQuote:'+i)+'</div>').join('')+'</section>'}
+
+function preventiviOrdinati(){
+ return data.preventivi.map((preventivo,index)=>({preventivo,index})).sort((a,b)=>{
+  const an=Number(a.preventivo.Numero),bn=Number(b.preventivo.Numero);
+  if(Number.isFinite(an)&&an>0&&Number.isFinite(bn)&&bn>0)return an-bn;
+  if(Number.isFinite(an)&&an>0)return -1;
+  if(Number.isFinite(bn)&&bn>0)return 1;
+  return b.index-a.index;
+ });
+}
+
+function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+btn('Elimina preventivo','deleteQuote:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Tariffa elettrica (€/kWh)','Tariffa']];
 const costFields=[
  ['Budget riparazioni (€)','BudgetRiparazioni'],['Ore previste per il budget','BudgetOre'],
@@ -332,7 +343,7 @@ function stampaElenco(tipo){
  const bobine=tipo==='bobine',titolo=preventivi?'Elenco preventivi':bobine?'Elenco bobine':tipo==='ricambio'?'Elenco ricambi':'Elenco materiale extra';
  const headers=preventivi?['Numero','Data','Oggetto','Cliente','Totale (€)']:bobine?['ID','Marca','Filamento','Colore','Codice','Fornitore','Data acquisto','Lordo g','Tara g','Netto g','Prezzo acquisto','IVA %','Tipo prezzo']:['Articolo','Codice','Fornitore','Data acquisto','Prezzo unitario','IVA %','Tipo prezzo'];
  const tipoPrezzo=v=>v?'IVA compresa':'IVA esclusa';
- const rows=preventivi?data.preventivi.map(p=>[numeroPreventivo(p.Numero),p.Data,p.Titolo,p.Cliente,euro(p.Esito?.Totale??0)]):bobine?data.bobine.map(b=>[id(b.Id),b.Produttore,b.Materiale,b.Colore,b.Codice,b.Fornitore,b.Data,formattaNumero(b.Lordo),formattaNumero(b.Tara),formattaNumero(n(b.Lordo)-n(b.Tara)),euro(b.Prezzo),b.Iva??0,tipoPrezzo(b.PrezzoIvato===true)]):articoli(tipo).map(a=>[a.Nome,a.Codice,a.Fornitore,a.DataAcquisto,euro(a.Prezzo),a.Iva??0,tipoPrezzo(a.PrezzoIvato===true)]);
+ const rows=preventivi?preventiviOrdinati().map(({preventivo:p})=>[numeroPreventivo(p.Numero),p.Data,p.Titolo,p.Cliente,euro(p.Esito?.Totale??0)]):bobine?data.bobine.map(b=>[id(b.Id),b.Produttore,b.Materiale,b.Colore,b.Codice,b.Fornitore,b.Data,formattaNumero(b.Lordo),formattaNumero(b.Tara),formattaNumero(n(b.Lordo)-n(b.Tara)),euro(b.Prezzo),b.Iva??0,tipoPrezzo(b.PrezzoIvato===true)]):articoli(tipo).map(a=>[a.Nome,a.Codice,a.Fornitore,a.DataAcquisto,euro(a.Prezzo),a.Iva??0,tipoPrezzo(a.PrezzoIvato===true)]);
  const html='<!doctype html><html lang="it"><meta charset="utf-8"><title>'+titolo+'</title><style>body{font:13px system-ui;color:#14243c;margin:24px}table{width:100%;border-collapse:collapse}th,td{padding:7px;text-align:left;border-bottom:1px solid #ccd5e2}th{background:#edf2fa}button{padding:10px}@media print{button{display:none}@page{size:landscape;margin:12mm}thead{display:table-header-group}tr{break-inside:avoid}}</style><h1>'+titolo+'</h1><p>'+new Date().toLocaleDateString('it-IT')+' · '+rows.length+' voci</p><button onclick="window.print()">Stampa / Salva PDF</button><table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v??'')+'</td>').join('')+'</tr>').join('')+'</tbody></table></html>';
  const page=window.open('','_blank');if(!page)throw Error('Consenti l’apertura della finestra di stampa nel browser.');
  page.document.open();page.document.write(html);page.document.close();
