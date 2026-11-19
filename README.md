@@ -88,3 +88,22 @@ Import G-code or sliced 3MF. Per-filament weights and colours are kept in separa
 - Le funzioni sono disponibili in italiano e inglese. I dati della versione pubblica restano nel browser del dispositivo; il trasferimento avviene tramite backup.
 
 Multicolour import, external spool support, reusable purchase catalogs, automatic net spool weight, optional density, clearer layout, quote printing/PDF and printable inventory and quote lists are available in Italian and English. Public-edition data is stored locally in the browser and can be transferred using backups.
+
+
+## CSV, bobine esaurite e riserva AMS
+
+In **Stampanti e dati → Esportazione CSV** puoi esportare filamenti, ricambi e materiale extra. Il CSV usa separatore punto e virgola, codifica UTF-8 e intestazioni nella lingua corrente.
+
+In **Bobine**, il pulsante **Nascondi bobine esaurite / Mostra bobine esaurite** filtra l’elenco e il CSV filamenti. Le bobine selezionate in un preventivo restano riconoscibili anche quando esaurite.
+
+Premi **Calcola** per verificare il filamento necessario a tutte le parti e ripetizioni. L’avviso considera il residuo condiviso tra le parti. Assegna una bobina per ogni riga per controllarne la disponibilità.
+
+Per una riga alimentata tramite **AMS**, puoi scegliere una **bobina identica di riserva**. L’identità viene verificata su marca, materiale, colore, diametro e codice articolo. Controlla che i dati del magazzino corrispondano alle bobine fisiche e abilita la funzione di cambio automatico sulla stampante. L’app gestisce disponibilità e consumi; la configurazione della stampante avviene nei suoi comandi.
+
+**Registra consumo** riguarda una singola esecuzione completata. Scarica prima la bobina principale e poi la riserva, mostrando i grammi nella conferma. Se la stampante ha usato quantità diverse, correggi le pesate delle bobine.
+
+### English
+
+Export filament, spare-part and extra-material CSV files from **Printers and data → CSV export**. Hide or show empty spools from **Spools**. Press **Calculate** to check stock across all parts and repetitions.
+
+For AMS feed, select an identical backup spool. The app checks brand, material, colour, diameter and item code, then accounts for both remaining weights. Enable automatic spool backup on the printer separately and verify physical spool compatibility. **Record usage** deducts one completed run from the primary spool first and the backup second; adjust actual spool weights if the real allocation differs.
