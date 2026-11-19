@@ -43,7 +43,21 @@ function stileColore(value){
  return 'background-color:'+hex+';color:'+(luminance>0.179?'#000000':'#FFFFFF')+';font-weight:600';
 }
 
-function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(value(path))+'"></label>'}
+
+const campiDueDecimali=new Set(['Grammi','Extra','Prezzo','Acquistato','Lordo','Tara','Tariffa','Acquisto','Paga','PostTariffa','Altro','BudgetRiparazioni','ValoreResiduo','Migliorie']);
+function formattaNumero(value){return Number.isFinite(n(value))?n(value).toFixed(2):value}
+function formattaCampi(root){
+ for(const el of root.querySelectorAll('input')){
+  const path=el.dataset.bind,key=path?.split('.').at(-1)??el.name;
+  const prezzoRicambio=el.hasAttribute('data-prezzo');
+  if((campiDueDecimali.has(key)||prezzoRicambio)&&el.value.trim()!==''){
+   el.value=formattaNumero(el.value);el.step='0.01';
+   if(path)set(path,el.value);
+  }
+ }
+}
+
+function input(label,path,type='number'){return '<label>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(campiDueDecimali.has(path.split('.').at(-1))?formattaNumero(value(path)):value(path))+'"></label>'}
 const fields=items=>'<div class="fields">'+items.join('')+'</div>';
 const btn=(label,action,primary=false)=>'<button type="button" data-action="'+action+'" '+(primary?'class="primary"':'')+'>'+label+'</button>';
 function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path)??(path.endsWith('.PrezzoIvato')?false:''))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
@@ -120,7 +134,7 @@ function printEditor(p,j){
  const machineSelect='<label>Stampante per questa parte<select data-machine="'+j+'">'+machines.map(([v,l])=>'<option value="'+esc(v)+'" '+(v===(p.Macchina?.nome??'')?'selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
  const materials=p.Materiali.map((m,i)=>{
   const k=prefix+'Materiali.'+i+'.';
-  const options=[['','Nessuna bobina'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara))+' g'])];
+  const options=[['','Nessuna bobina'],...data.bobine.map(b=>[id(b.Id),id(b.Id)+' · '+b.Materiale+' · '+b.Colore+(b.Codice?' · '+b.Codice:'')+' · '+(n(b.Lordo)-n(b.Tara)).toFixed(2)+' g'])];
   if(m.Bobina&&!options.some(([v])=>v===m.Bobina))options.push([m.Bobina,'Bobina '+m.Bobina+' rimossa']);
   return '<div class="row">'+(m.Slot?'<strong>Filamento slot '+esc(m.Slot)+'</strong>':'')+fields([input('Filamento',k+'Nome','text'),input('Colore / HEX',k+'Colore','text'),input('Grammi',k+'Grammi'),input('Scarto extra (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Bobina',k+'Bobina',options),select('Alimentazione',k+'Alimentazione',[['','Da verificare'],['AMS','AMS'],['EXT','Bobina esterna (EXT)']])])+btn('Rimuovi filamento','rmMat:'+j+':'+i)+'</div>';
  }).join('');
@@ -130,7 +144,7 @@ function quote(){
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
-  '<fieldset><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)).join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
+  '<fieldset><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)+'</div>').join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
   '<fieldset><legend>Costi stampante predefinita e lavorazioni</legend>'+fields([...machine,['Energia (€/kWh)','Tariffa'],['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
   '<section class="card"><h2>Riepilogo</h2><div id="total"></div><div class="actions">'+btn('Calcola','calc')+btn('Salva preventivo','save',true)+btn(q.Numero?'Esporta preventivo':'Salva ed esporta','export')+btn('Nuovo preventivo','new')+'</div></section>';
 }
@@ -166,7 +180,7 @@ function showTotal(x){
  $('#total').innerHTML='<p><strong>Costo di realizzazione: '+euro(x.productionCost)+'</strong> · '+euro(x.productionUnit)+' per prodotto finito<br><small>Uso interno, prima di ricarico e IVA</small></p><div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per prodotto finito · IVA '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
 }
 function spools(){
- return '<section class="card"><h2>Bobine</h2>'+btn('Nuova bobina','spool')+btn('Stampa elenco bobine','print:bobine')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Cod. '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('it-IT')+' g residui · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Modifica','spool:'+b.Id)+btn('Cancella','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
+ return '<section class="card"><h2>Bobine</h2>'+btn('Nuova bobina','spool')+btn('Stampa elenco bobine','print:bobine')+data.bobine.map(b=>'<div class="row"><strong>#'+id(b.Id)+' '+esc(b.Materiale+' · '+b.Colore)+'</strong><p>'+esc(b.Produttore)+(b.Codice?' · Cod. '+esc(b.Codice):'')+' · '+(n(b.Lordo)-n(b.Tara)).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+' g residui · '+euro(prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato))+'/kg</p>'+btn('Modifica','spool:'+b.Id)+btn('Cancella','rmSpool:'+b.Id)+'</div>').join('')+'</section>';
 }
 function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+data.preventivi.map((p,i)=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+'</div>').join('')+'</section>'}
 const printerFields=[...machine,['Tariffa elettrica (€/kWh)','Tariffa']];
@@ -239,6 +253,7 @@ function printerForm(existing){
    q.Profilo=nome;applyProfile(profile);dialog.close();render();msg('Profilo salvato e selezionato nel preventivo.');
   }catch(err){dialog.querySelector('[role=alert]').textContent=err.message}
  };
+ formattaCampi(dialog);
  dialog.showModal();
 }
 
@@ -246,7 +261,7 @@ function stampaElenco(tipo){
  const bobine=tipo==='bobine',titolo= bobine?'Elenco bobine':tipo==='ricambio'?'Elenco ricambi':'Elenco materiale extra';
  const headers=bobine?['ID','Marca','Filamento','Colore','Codice','Fornitore','Data acquisto','Lordo g','Tara g','Netto g','Prezzo acquisto','IVA %','Tipo prezzo']:['Articolo','Codice','Fornitore','Data acquisto','Prezzo unitario','IVA %','Tipo prezzo'];
  const tipoPrezzo=v=>v?'IVA compresa':'IVA esclusa';
- const rows=bobine?data.bobine.map(b=>[id(b.Id),b.Produttore,b.Materiale,b.Colore,b.Codice,b.Fornitore,b.Data,b.Lordo,b.Tara,n(b.Lordo)-n(b.Tara),euro(b.Prezzo),b.Iva??0,tipoPrezzo(b.PrezzoIvato===true)]):articoli(tipo).map(a=>[a.Nome,a.Codice,a.Fornitore,a.DataAcquisto,euro(a.Prezzo),a.Iva??0,tipoPrezzo(a.PrezzoIvato===true)]);
+ const rows=bobine?data.bobine.map(b=>[id(b.Id),b.Produttore,b.Materiale,b.Colore,b.Codice,b.Fornitore,b.Data,formattaNumero(b.Lordo),formattaNumero(b.Tara),formattaNumero(n(b.Lordo)-n(b.Tara)),euro(b.Prezzo),b.Iva??0,tipoPrezzo(b.PrezzoIvato===true)]):articoli(tipo).map(a=>[a.Nome,a.Codice,a.Fornitore,a.DataAcquisto,euro(a.Prezzo),a.Iva??0,tipoPrezzo(a.PrezzoIvato===true)]);
  const html='<!doctype html><html lang="it"><meta charset="utf-8"><title>'+titolo+'</title><style>body{font:13px system-ui;color:#14243c;margin:24px}table{width:100%;border-collapse:collapse}th,td{padding:7px;text-align:left;border-bottom:1px solid #ccd5e2}th{background:#edf2fa}button{padding:10px}@media print{button{display:none}@page{size:landscape;margin:12mm}thead{display:table-header-group}tr{break-inside:avoid}}</style><h1>'+titolo+'</h1><p>'+new Date().toLocaleDateString('it-IT')+' · '+rows.length+' voci</p><button onclick="window.print()">Stampa / Salva PDF</button><table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v??'')+'</td>').join('')+'</tr>').join('')+'</tbody></table></html>';
  const page=window.open('','_blank');if(!page)throw Error('Consenti l’apertura della finestra di stampa nel browser.');
  page.document.open();page.document.write(html);page.document.close();
@@ -255,6 +270,7 @@ function stampaElenco(tipo){
 function settings(){return '<section class="card"><h2>Elenchi stampabili</h2><div class="actions">'+btn('Bobine','print:bobine')+btn('Ricambi','print:ricambio')+btn('Materiale extra','print:componente')+'</div></section>'+ '<section class="card"><h2>Stampanti</h2>'+btn('Aggiungi stampante','printer',true)+data.profili.map((p,i)=>'<div class="row"><strong>'+esc(p.nome)+'</strong><p>'+esc(p.Watt)+' W stampante · '+esc(p.WattAms)+' W AMS extra · '+euro(p.Acquisto)+' acquisto · '+esc(p.Vita)+' ore di vita utile · '+euro(maintenance(p))+'/h manutenzione'+(p.Tariffa==null?'':' · '+esc(p.Tariffa)+' €/kWh')+'</p>'+btn('Modifica stampante','printer:'+i)+btn('Elimina profilo','rmPrinter:'+i)+'</div>').join('')+'</section><section class="card"><h2>Backup e trasferimento dati</h2> <p>'+btn('Scarica backup','backup')+'</p><label>Ripristina un backup<input id="restore" type="file" accept=".json"></label><label>Seleziona bobine.json, profili.json e i preventivi JSON<input id="legacy" type="file" multiple accept=".json"></label><p>I dati Windows si trovano nella cartella %LOCALAPPDATA%\\CalcoloStampa3D.</p></section>'}
 function render(){
  $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori());
+ formattaCampi($('#view'));
  for(const b of document.querySelectorAll('[data-tab]')){if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}
 }
 function dataCalendario(value){
@@ -282,7 +298,7 @@ function spoolForm(existing){
   const completo=lordo.value.trim()!==''&&tara.value.trim()!=='';
   const netto=n(lordo.value)-n(tara.value);
   lordo.setCustomValidity(completo&&netto<0?'Il lordo deve essere almeno pari alla tara.':'');
-  nettoOutput.textContent=completo&&netto>=0?netto.toLocaleString('it-IT')+' g':'—';
+  nettoOutput.textContent=completo&&netto>=0?netto.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+' g':'—';
   if(completo&&netto>=0&&!pesoAcquistatoManuale)form.elements.Acquistato.value=Number(netto.toFixed(6));
  };
 
@@ -325,7 +341,7 @@ async function salvaPreventivo(x){
     q.Numero=preventivo.Numero;originalQuote=null;
 }
 function exportQuote(x){
- const doc='<!doctype html><html lang="it"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>Preventivo stampa 3D · '+esc(q.Cliente)+'</p><table><thead><tr><th>Voce</th><th>Quantità</th><th>Importo (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p>Imponibile '+euro(x.net)+' · IVA '+euro(x.tax)+'</p><h2>Totale '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per prodotto finito</p></html>';
+ const doc='<!doctype html><html lang="it"><meta charset="utf-8"><title>'+esc(q.Titolo)+'</title><style>body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#14243C}table{border-collapse:collapse;width:100%}th,td{padding:12px;text-align:left;border-bottom:1px solid #CBD7EA}td{vertical-align:middle}.foto-parte{display:block;max-width:120px;max-height:92px;margin-bottom:6px}tr{break-inside:avoid}thead th{font-size:16px;background:#e5edf9;border-bottom:2px solid #2857a5}tbody td{padding:15px 12px}tbody tr:nth-child(even){background:#f3f6fb}h1{padding-bottom:14px;border-bottom:3px solid #2857a5}h2{margin-top:28px;border-top:3px solid #2857a5;padding-top:16px}</style><h1>'+numeroPreventivo(q.Numero)+' · '+esc(q.Titolo)+'</h1><p>Preventivo stampa 3D · '+esc(q.Cliente)+'</p><table><thead><tr><th>Voce</th><th>Quantità</th><th>Importo (€)</th></tr></thead><tbody>'+x.rows.map(([a,b,c,foto])=>'<tr><td>'+fotoHtml(foto,a)+esc(a)+'</td><td>'+esc(b)+'</td><td>'+euro(c)+'</td></tr>').join('')+'</tbody></table><p>Imponibile '+euro(x.net)+' · IVA '+euro(x.tax)+'</p><h2>Totale '+euro(x.total)+'</h2><p>'+euro(x.unit)+' per prodotto finito</p></html>';
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([doc],{type:'text/html'}));a.download='Preventivo '+q.Titolo+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function gcode(text,name){
@@ -515,5 +531,15 @@ $('#view').addEventListener('click',async e=>{
 $('nav').onclick=e=>{const t=e.target.dataset.tab;if(t){tab=t;render()}};
 $('#reload').onclick=sync;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+document.addEventListener('focusout',e=>{
+ const el=e.target;
+ if(el.tagName!=='INPUT')return;
+ const key=el.dataset.bind?.split('.').at(-1)??el.name;
+ if((campiDueDecimali.has(key)||el.hasAttribute('data-prezzo'))&&el.value.trim()!==''&&Number.isFinite(n(el.value))){
+  el.value=formattaNumero(el.value);
+  if(el.dataset.bind)set(el.dataset.bind,el.value);
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+ }
+});
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
