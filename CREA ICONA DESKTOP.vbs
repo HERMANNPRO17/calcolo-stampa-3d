@@ -8,8 +8,8 @@ If Not fso.FolderExists(dest) Then fso.CreateFolder(dest)
 fso.CopyFile folder & "\CALCOLO STAMPA 3D.ico", dest & "\CALCOLO STAMPA 3D.ico", True
 Set link = shell.CreateShortcut(shell.SpecialFolders("Desktop") & "\CALCOLO STAMPA 3D.lnk")
 link.TargetPath = shell.ExpandEnvironmentStrings("%WINDIR%") & "\explorer.exe"
-link.Arguments = "https://hermannpro17.github.io/calcolo-stampa-3d/"
+link.Arguments = Chr(34) & folder & "\index.html" & Chr(34)
 link.IconLocation = dest & "\CALCOLO STAMPA 3D.ico,0"
-link.Description = "CALCOLO STAMPA 3D"
+link.Description = "CALCOLO STAMPA 3D - copia scaricata 2026.11.21.1"
 link.Save
 MsgBox "Collegamento CALCOLO STAMPA 3D creato sul desktop.", 64, "CALCOLO STAMPA 3D"
