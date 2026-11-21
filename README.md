@@ -107,3 +107,16 @@ Per una riga alimentata tramite **AMS**, puoi scegliere una **bobina identica di
 Export filament, spare-part and extra-material CSV files from **Printers and data → CSV export**. Hide or show empty spools from **Spools**. Press **Calculate** to check stock across all parts and repetitions.
 
 For AMS feed, select an identical backup spool. The app checks brand, material, colour, diameter and item code, then accounts for both remaining weights. Enable automatic spool backup on the printer separately and verify physical spool compatibility. **Record usage** deducts one completed run from the primary spool first and the backup second; adjust actual spool weights if the real allocation differs.
+
+
+## Versione 2026.11.21.1: riconoscere la copia aggiornata
+
+La versione caricata è visibile nella testata. Questa versione comprende il richiamo di codici e colori dai dati salvati.
+
+Per aggiornare la copia scaricata, estrai tutto lo ZIP in una nuova cartella, apri **AVVIA APP.cmd**, poi esegui **CREA ICONA DESKTOP.vbs** per aggiornare il collegamento. Il collegamento desktop apre ora index.html dalla cartella estratta. Conserva la cartella per continuare a usare il collegamento. La versione web rimane accessibile dal link pubblico.
+
+L’archivio dipende dal browser e dall’indirizzo o percorso della copia aperta. Prima del trasferimento usa **Scarica backup**, poi **Ripristina un backup** nella nuova copia, controllando l’archivio di destinazione.
+
+### English
+
+The header shows the loaded release version. Extract the entire ZIP into a new folder, open **AVVIA APP.cmd**, then run **CREA ICONA DESKTOP.vbs** to update the desktop shortcut. The shortcut now opens the downloaded local index.html. Keep its folder in place. Use backup export and restore to transfer your saved data between copies or browsers.
