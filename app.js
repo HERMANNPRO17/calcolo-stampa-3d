@@ -707,5 +707,6 @@ document.addEventListener('focusout',e=>{
   el.dispatchEvent(new Event('input',{bubbles:true}));
  }
 });
+const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Versione 2026.11.21.1';
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
