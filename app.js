@@ -57,7 +57,21 @@ function formattaCampi(root){
  }
 }
 
-function input(label,path,type='number'){return '<label'+(path.split('.').at(-1)==='Origine'?' class="nome-file-esteso"':'')+'>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(campiDueDecimali.has(path.split('.').at(-1))?formattaNumero(value(path)):value(path))+'"></label>'}
+
+function valoriRichiamabili(values){
+ const entries=new Map();
+ for(const value of values){const text=String(value??'').trim();if(text&&!entries.has(text.toLocaleLowerCase()))entries.set(text.toLocaleLowerCase(),text)}
+ return [...entries.values()].sort((a,b)=>a.localeCompare(b));
+}
+function coloriSalvati(){
+ const materiali=[...data.preventivi,q].flatMap(p=>[p,...(p.StampeAggiuntive??[])].flatMap(parte=>parte.Materiali??[]));
+ return valoriRichiamabili([...data.bobine.map(b=>b.Colore),...materiali.map(m=>m.Colore)]);
+}
+function codiciSalvati(tipo){
+ return valoriRichiamabili(tipo==='bobine'?data.bobine.map(b=>b.Codice):articoli(tipo).map(a=>a.Codice));
+}
+
+function input(label,path,type='number'){return '<label'+(path.split('.').at(-1)==='Origine'?' class="nome-file-esteso"':'')+'>'+label+'<input data-bind="'+path+'" style="'+(path.endsWith('.Colore')?stileColore(value(path)):'')+'" type="'+type+'" '+(path.endsWith('.Fornitore')?'list="fornitori" ':path.endsWith('.Colore')?'list="colori-salvati" ':path.startsWith('Componenti.')&&path.endsWith('.Codice')?'list="codici-extra" ':'')+' '+(type==='number'?'min="0" step="any" inputmode="decimal"':'')+' value="'+esc(campiDueDecimali.has(path.split('.').at(-1))?formattaNumero(value(path)):value(path))+'"></label>'}
 const fields=items=>'<div class="fields">'+items.join('')+'</div>';
 const btn=(label,action,primary=false)=>'<button type="button" data-action="'+action+'" '+(primary?'class="primary"':'')+'>'+label+'</button>';
 function select(label,path,options){return '<label>'+label+'<select data-bind="'+path+'">'+options.map(([v,name])=>'<option value="'+esc(v)+'" '+(String(v)===String(value(path)??(path.endsWith('.PrezzoIvato')?false:''))?'selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>'}
@@ -283,7 +297,7 @@ function printerForm(existing){
  ])+'<fieldset><legend>Budget riparazioni e ammortamento</legend>'+fields(costFields.map(([label,key])=>'<label>'+label+'<input type="number" min="0" step="any" required name="'+key+'" value="'+esc(existing?.[key]??0)+'"></label>'))+'<p>Usa il budget per riparazioni non già comprese nei ricambi. Compila valore contabile, migliorie e ore residue se vuoi ricalcolare l’ammortamento.</p></fieldset><fieldset><legend>Manutenzione e ricambi</legend><div data-usura></div><button type="button" data-add-usura>Aggiungi ricambio o intervento</button><p><output></output> di manutenzione per ora di stampa</p></fieldset><p>La potenza media è quella durante la stampa. Inserisci il consumo AMS extra solo se è misurato separatamente.</p><p role="alert"></p><div class="actions"><button class="primary">Salva stampante</button><button type="button">Annulla</button></div></form>';
  document.body.append(dialog);
  const form=dialog.querySelector('form');
- const usura=form.querySelector('[data-usura]');form.insertAdjacentHTML('beforeend',suggerimenti('fornitori-ricambi',fornitori()));
+ const usura=form.querySelector('[data-usura]');form.insertAdjacentHTML('beforeend',suggerimenti('fornitori-ricambi',fornitori())+suggerimenti('codici-ricambi',codiciSalvati('ricambio')));
  const leggiUsura=()=>Array.from(usura.children,row=>({fornitore:row.querySelector('[data-fornitore]').value.trim(),dataAcquisto:row.querySelector('[data-data]').value,iva:n(row.querySelector('[data-iva]').value),nome:row.querySelector('[data-nome]').value.trim(),codice:row.querySelector('[data-codice]').value.trim(),prezzoIvato:row.querySelector('[data-prezzo-ivato]').value==='true',prezzo:n(row.querySelector('[data-prezzo]').value),ore:n(row.querySelector('[data-ore]').value)}));
  const aggiornaUsura=()=>{
   const righe=leggiUsura().filter(r=>r.ore>0);
@@ -293,7 +307,7 @@ function printerForm(existing){
   const row=document.createElement('div');row.className='row';
   row.innerHTML=menuArticoli('ricambio','data-recall')+fields([
    '<label>Ricambio o intervento<input required data-nome value="'+esc(r.nome??'')+'"></label>',
-   '<label>Codice articolo<input data-codice value="'+esc(r.codice??'')+'"></label>',
+   '<label>Codice articolo<input data-codice list="codici-ricambi" value="'+esc(r.codice??'')+'"></label>',
    '<label>Fornitore<input data-fornitore list="fornitori-ricambi" value="'+esc(r.fornitore??'')+'"></label>',
    '<label>Data acquisto<input data-data type="date" value="'+esc(r.dataAcquisto??'')+'"></label>',
    '<label>IVA acquisto (%)<input data-iva type="number" min="0" max="100" step="any" value="'+esc(r.iva??22)+'"></label>',
@@ -351,7 +365,7 @@ function stampaElenco(tipo){
 
 function settings(){return '<section class="card"><h2>Esportazione CSV</h2><div class="actions">'+btn('Filamenti','csv:bobine')+btn('Ricambi','csv:ricambio')+btn('Materiale extra','csv:componente')+'</div></section>'+ '<section class="card"><h2>Elenchi stampabili</h2><div class="actions">'+btn('Bobine','print:bobine')+btn('Ricambi','print:ricambio')+btn('Materiale extra','print:componente')+'</div></section>'+ '<section class="card"><h2>Stampanti</h2>'+btn('Aggiungi stampante','printer',true)+data.profili.map((p,i)=>'<div class="row"><strong>'+esc(p.nome)+'</strong><p>'+esc(p.Watt)+' W stampante · '+esc(p.WattAms)+' W AMS extra · '+euro(p.Acquisto)+' acquisto · '+esc(p.Vita)+' ore di vita utile · '+euro(maintenance(p))+'/h manutenzione'+(p.Tariffa==null?'':' · '+esc(p.Tariffa)+' €/kWh')+'</p>'+btn('Modifica stampante','printer:'+i)+btn('Elimina profilo','rmPrinter:'+i)+'</div>').join('')+'</section><section class="card"><h2>Backup e trasferimento dati</h2> <p>'+btn('Scarica backup','backup')+'</p><label>Ripristina un backup<input id="restore" type="file" accept=".json"></label><label>Seleziona bobine.json, profili.json e i preventivi JSON<input id="legacy" type="file" multiple accept=".json"></label><p>I dati Windows si trovano nella cartella %LOCALAPPDATA%\\CalcoloStampa3D.</p></section>'}
 function render(){
- $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori());
+ $('#view').innerHTML={quote,spools,archive,settings}[tab]()+suggerimenti('fornitori',fornitori())+suggerimenti('colori-salvati',coloriSalvati())+suggerimenti('codici-extra',codiciSalvati('componente'));
  formattaCampi($('#view'));
  for(const b of document.querySelectorAll('[data-tab]')){if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}
 }
@@ -367,7 +381,7 @@ function spoolForm(existing,modello=null,onCreated=null){
  const props=[['Produttore','Marca'],['Materiale','Tipo filamento'],['Colore','Colore'],['Fornitore','Fornitore'],['Diametro','Diametro (mm)'],['Densita','Densità (g/cm³, facoltativa)'],['Codice','Codice articolo'],['Lotto','Lotto'],['Data','Data acquisto'],['Acquistato','Peso netto acquistato (g)'],['Lordo','Lordo attuale (g)'],['Tara','Tara (g)'],['Prezzo','Prezzo per bobina (€)'],['Iva','IVA acquisto (%)'],['Note','Note']];
  const numeric=['Acquistato','Lordo','Tara','Prezzo','Diametro','Iva'];
  dialog.innerHTML='<form class="card"><h2>'+(existing?'Modifica bobina':'Nuova bobina')+'</h2>'+fields(props.map(([k,l])=>{
-  const options=['Produttore','Materiale','Fornitore'].includes(k)?[...new Set([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))])]:[];
+  const options=k==='Colore'?coloriSalvati():k==='Codice'?codiciSalvati('bobine'):['Produttore','Materiale','Fornitore'].includes(k)?valoriRichiamabili([...(k==='Materiale'?tipiFilamento:[]),...(k==='Fornitore'?fornitori():data.bobine.map(b=>b[k]).filter(Boolean))]):[];
   return '<label>'+l+'<input name="'+k+'" value="'+esc(k==='Data'?dataCalendario(initial?.[k]):initial?.[k]??(k==='Diametro'?1.75:''))+'" '+(k==='Data'?'type="date"':k==='Densita'?'type="number" min="0.001" step="any" inputmode="decimal"':numeric.includes(k)?'type="number" min="0" step="any" required':(['Produttore','Materiale','Colore'].includes(k)?'required':''))+(options.length?' list="opt'+k+'"':'')+'>'+ (options.length?'<datalist id="opt'+k+'">'+options.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>':'')+'</label>';
  }))+'<label>Tipo prezzo<select name="PrezzoIvato"><option value="true" '+(!initial||initial.PrezzoIvato===true?'selected':'')+'>IVA compresa</option><option value="false" '+(initial&&initial.PrezzoIvato!==true?'selected':'')+'>IVA esclusa</option></select></label>'+(existing?'':'<label>Bobine identiche<input name="quantita" type="number" min="1" max="999" value="1" required></label>')+'<p>Netto residuo: <output></output></p><p class="error" role="alert"></p><div class="actions"><button class="primary">Salva</button><button type="button">Annulla</button></div></form>';
  document.body.append(dialog);const form=dialog.querySelector('form');
@@ -377,6 +391,7 @@ function spoolForm(existing,modello=null,onCreated=null){
  const nettoOutput=dialog.querySelector('output');
  nettoOutput.style.cssText='display:block;font-size:1.3rem;font-weight:700;padding:10px;background:#eaf1fc;border-radius:8px';
  const update=()=>{
+  form.elements.Colore.style.cssText=stileColore(form.elements.Colore.value);
   const lordo=form.elements.Lordo,tara=form.elements.Tara;
   const completo=lordo.value.trim()!==''&&tara.value.trim()!=='';
   const netto=n(lordo.value)-n(tara.value);
