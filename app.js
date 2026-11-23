@@ -141,6 +141,43 @@ function memorizzaArticolo(d,a){
  d.catalogo=d.catalogo.filter(x=>key(x)!==key(a));d.catalogo.push(a);
 }
 
+
+const consumiInCorso=new Set();
+function preparaConsumi(){
+ for(const [index,parte] of [...q.StampeAggiuntive,q].entries()){
+  if(!parte.ConsumoId)parte.ConsumoId=q.Numero?'preventivo:'+q.Numero+':parte:'+index:crypto.randomUUID();
+ }
+}
+function consumoRegistrato(parte,db=data){
+ return !!(parte.ConsumoRegistrato||parte.ConsumoId&&db.consumiregistrati?.[parte.ConsumoId]);
+}
+function pulsanteConsumo(parte,index){
+ const registered=consumoRegistrato(parte),pending=consumiInCorso.has(parte.ConsumoId);
+ return '<button type="button" data-action="consume:'+index+'" '+(registered||pending?'disabled aria-disabled="true"':'')+'>'+
+  (registered?'Consumo registrato':pending?'Registrazione…':'Registra consumo')+'</button>';
+}
+function applicaConsumo(db,parte,numero){
+ if(consumoRegistrato(parte,db))throw Error('Il consumo di questa parte è già stato registrato.');
+ const current=pianoConsumi([parte],db,false);
+ if(current.warnings.length)throw Error(current.warnings.join('\n'));
+ if(!current.used.size)throw Error('Inserisci il consumo in grammi.');
+ for(const [key,g] of current.used){
+  const bobina=db.bobine.find(b=>id(b.Id)===key);
+  bobina.Lordo=n(bobina.Lordo)-g;
+ }
+ db.consumiregistrati??={};
+ const receipt={Data:new Date().toISOString(),Bobine:Object.fromEntries(current.used)};
+ db.consumiregistrati[parte.ConsumoId]=receipt;
+ const archived=db.preventivi.find(p=>p.Numero===numero);
+ if(archived){
+  for(const [index,p] of [...(archived.StampeAggiuntive??[]),archived].entries()){
+   const key=p.ConsumoId??'preventivo:'+numero+':parte:'+index;
+   if(key===parte.ConsumoId){p.ConsumoId=key;p.ConsumoRegistrato=receipt}
+  }
+ }
+ return receipt;
+}
+
 function printEditor(p,j){
  const prefix=j===q.StampeAggiuntive.length?'':'StampeAggiuntive.'+j+'.';
  const machines=[['','Stampante del preventivo'],...data.profili.map(m=>[m.nome,m.nome])];
@@ -158,9 +195,10 @@ function printEditor(p,j){
   if(m.Riserva&&!reserves.some(([v])=>v===m.Riserva))reserves.push([m.Riserva,'Riserva da verificare '+m.Riserva]);
   return '<div class="row">'+(m.Slot?'<strong>'+(m.Alimentazione==='EXT'?'Bobina esterna (EXT) · ':'' )+'Filamento file '+esc(m.Slot)+'</strong>':'')+fields([input('Filamento',k+'Nome','text'),input('Colore / HEX',k+'Colore','text'),input('Grammi',k+'Grammi'),input('Scarto extra (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Bobina',k+'Bobina',options),select('Alimentazione',k+'Alimentazione',[['','Da verificare'],['AMS','AMS'],['EXT','Bobina esterna (EXT)']]),...(m.Alimentazione==='AMS'?[select('Bobina identica di riserva AMS',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>La riserva richiede una seconda bobina identica disponibile. Abilita il cambio automatico anche sulla stampante.</small>'+(primary?btn('Aggiungi bobina identica','backupSpool:'+j+':'+i):'<p>Seleziona prima la bobina principale.</p>')+(!compatible.length?'<p role="status">Nessuna bobina identica disponibile nel magazzino.</p>':'')+'':'')+btn('Rimuovi filamento','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset class="parte-stampa"><legend>Parte '+(j+1)+'</legend>'+fields([input('Nome o file',prefix+'Origine','text'),input('Durata (min)',prefix+'Minuti'),input('Pezzi per stampa',prefix+'Pezzi'),input('Ripetizioni',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Dati stampante usata per questo pezzo:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Foto del pezzo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Rimuovi foto','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Aggiungi filamento','mat:'+j)+btn('Registra consumo','consume:'+j)+btn('Elimina parte','rmPart:'+j)+'</div></fieldset>';
+ return '<fieldset class="parte-stampa"><legend>Parte '+(j+1)+'</legend>'+fields([input('Nome o file',prefix+'Origine','text'),input('Durata (min)',prefix+'Minuti'),input('Pezzi per stampa',prefix+'Pezzi'),input('Ripetizioni',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Dati stampante usata per questo pezzo:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Foto del pezzo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Rimuovi foto','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Aggiungi filamento','mat:'+j)+pulsanteConsumo(p,j)+btn('Elimina parte','rmPart:'+j)+'</div></fieldset>';
 }
 function quote(){
+ preparaConsumi();
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
  return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2><div class="actions">'+btn('Nuovo preventivo','new')+'</div>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
@@ -173,7 +211,7 @@ function eliminaParte(index){
  if(index<q.StampeAggiuntive.length){q.StampeAggiuntive.splice(index,1);return}
  if(index!==q.StampeAggiuntive.length)return;
  const sostituta=q.StampeAggiuntive.pop()??part();
- for(const key of ['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione']){
+ for(const key of ['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione','ConsumoId','ConsumoRegistrato']){
   if(Object.prototype.hasOwnProperty.call(sostituta,key))q[key]=sostituta[key];else delete q[key];
  }
 }
@@ -503,7 +541,7 @@ async function zipEntries(file){
 }
 
 let codaImportazioni=Promise.resolve();
-const campiParte=['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione'];
+const campiParte=['Origine','Minuti','Pezzi','Ripetizioni','Materiali','Foto','Macchina','AvvisoImportazione','ConsumoId','ConsumoRegistrato'];
 function aggiungiPartiInOrdine(nuove){
  if(!nuove.length)return;
  const corrente=Object.fromEntries(campiParte.filter(k=>Object.prototype.hasOwnProperty.call(q,k)).map(k=>[k,q[k]]));
@@ -679,16 +717,23 @@ $('#view').addEventListener('click',async e=>{
    case 'managePrinters':tab='settings';break;
    case 'printer':printerForm(i===undefined?undefined:data.profili[n(i)]);return;
 
+
    case 'consume':{
+    preparaConsumi();
+    if(consumoRegistrato(p)||consumiInCorso.has(p.ConsumoId))return;
     const plan=pianoConsumi([p],data,false);
     if(plan.warnings.length)throw Error(plan.warnings.join('\n'));
     if(!plan.used.size)throw Error('Inserisci il consumo in grammi.');
     if(!confirm('Registrare il consumo di una stampa completata?\n'+[...plan.used].map(([b,g])=>b+': '+g.toFixed(2)+' g').join('\n')))return;
-    await save(db=>{
-     const current=pianoConsumi([p],db,false);
-     if(current.warnings.length)throw Error(current.warnings.join('\n'));
-     for(const [key,g] of current.used){const bobina=db.bobine.find(b=>id(b.Id)===key);bobina.Lordo=n(bobina.Lordo)-g}
-    });msg('Consumo registrato.');break;
+    consumiInCorso.add(p.ConsumoId);render();
+    try{
+     let receipt;
+     const register=()=>save(db=>{receipt=applicaConsumo(db,p,q.Numero)});
+     if(navigator.locks?.request)await navigator.locks.request(storageKey+':consumi',register);else await register();
+     p.ConsumoRegistrato=receipt;
+     msg('Consumo registrato.');
+    }finally{consumiInCorso.delete(p.ConsumoId);render()}
+    break;
    }
   }
   render();
@@ -707,6 +752,6 @@ document.addEventListener('focusout',e=>{
   el.dispatchEvent(new Event('input',{bubbles:true}));
  }
 });
-const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Versione 2026.11.21.1';
+const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Versione 2026.11.23.1';
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
