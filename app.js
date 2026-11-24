@@ -6,7 +6,7 @@ const n=v=>Number(String(v??'').replace(',','.'));
 const round=v=>Math.round((v+Number.EPSILON)*100)/100;
 const mat=()=>({Nome:'PLA',Grammi:0,Extra:0,Prezzo:0,Bobina:'',Alimentazione:''});
 const part=()=>({Origine:'',Minuti:0,Pezzi:1,Ripetizioni:1,Materiali:[mat()]});
-const fresh=()=>({...part(),Titolo:'',Cliente:'',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
+const fresh=()=>({...part(),Titolo:'',Cliente:'',Stato:'bozza',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
 const blank=()=>({prossimo:1,bobine:[],preventivi:[],profili:[]});
 let data=blank(),tab='quote',q=fresh(),active=false,initialSync=true;
 const id=v=>String(v).padStart(4,'0');
@@ -151,12 +151,23 @@ function preparaConsumi(){
 function consumoRegistrato(parte,db=data){
  return !!(parte.ConsumoRegistrato||parte.ConsumoId&&db.consumiregistrati?.[parte.ConsumoId]);
 }
+
+function ordineConfermato(db=data){
+ return !!(q.Numero&&db.preventivi.some(p=>p.Numero===q.Numero&&p.Stato==='confermato'));
+}
+function statoPreventivo(p){
+ return p.Stato==='confermato'?'Confermato / Ordine':'Bozza';
+}
+
 function pulsanteConsumo(parte,index){
- const registered=consumoRegistrato(parte),pending=consumiInCorso.has(parte.ConsumoId);
- return '<button type="button" data-action="consume:'+index+'" '+(registered||pending?'disabled aria-disabled="true"':'')+'>'+
-  (registered?'Consumo registrato':pending?'Registrazione…':'Registra consumo')+'</button>';
+ const registered=consumoRegistrato(parte),pending=consumiInCorso.has(parte.ConsumoId),confirmed=ordineConfermato();
+ return '<button type="button" data-action="consume:'+index+'" '+(registered||pending||!confirmed?'disabled aria-disabled="true"':'')+'>'+
+  (registered?'Consumo registrato':pending?'Registrazione…':!confirmed?'Conferma prima il preventivo':'Registra consumo')+'</button>';
 }
 function applicaConsumo(db,parte,numero){
+ const archived=db.preventivi.find(p=>p.Numero===numero);
+ if(!archived||archived.Stato!=='confermato')throw Error('Conferma il preventivo o l’ordine prima di scaricare il consumo della stampa riuscita.');
+
  if(consumoRegistrato(parte,db))throw Error('Il consumo di questa parte è già stato registrato.');
  const current=pianoConsumi([parte],db,false);
  if(current.warnings.length)throw Error(current.warnings.join('\n'));
@@ -168,7 +179,6 @@ function applicaConsumo(db,parte,numero){
  db.consumiregistrati??={};
  const receipt={Data:new Date().toISOString(),Bobine:Object.fromEntries(current.used)};
  db.consumiregistrati[parte.ConsumoId]=receipt;
- const archived=db.preventivi.find(p=>p.Numero===numero);
  if(archived){
   for(const [index,p] of [...(archived.StampeAggiuntive??[]),archived].entries()){
    const key=p.ConsumoId??'preventivo:'+numero+':parte:'+index;
@@ -261,7 +271,7 @@ function printEditor(p,j){
 function quote(){
  preparaConsumi();
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
- return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2><div class="actions">'+btn('Nuovo preventivo','new')+'</div>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
+ return '<section class="card"><h2>Preventivo · '+numeroPreventivo(q.Numero)+'</h2><p><strong>Stato: '+statoPreventivo(q)+'</strong></p><div class="actions">'+btn('Nuovo preventivo','new')+(!ordineConfermato()?btn('Conferma preventivo / Ordine','confirmOrder',true):'')+'</div>'+fields([input('Nome oggetto','Titolo','text'),input('Cliente','Cliente','text'),input('Prodotti finiti','ProdottiFiniti'),select('Stampante','Profilo',profiles)])+'<div class="actions">'+btn('Gestisci stampanti','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Importa file di stampa</strong><span>Seleziona uno o più G-code o 3MF elaborati dallo slicer.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Aggiungi parte','part')+
   '<fieldset class="settore-extra"><legend>Materiale extra</legend><p>I nuovi acquisti sono IVA compresa. Indica l’aliquota oppure scegli IVA esclusa. Gli articoli precedenti mantengono il prezzo netto originale.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Componente','Componenti.'+i+'.Nome','text'),input('Codice articolo','Componenti.'+i+'.Codice','text'),input('Fornitore','Componenti.'+i+'.Fornitore','text'),input('Data acquisto','Componenti.'+i+'.DataAcquisto','date'),input('IVA acquisto (%)','Componenti.'+i+'.Iva'),select('Tipo prezzo','Componenti.'+i+'.PrezzoIvato',[['true','IVA compresa'],['false','IVA esclusa']]),input('Quantità','Componenti.'+i+'.Quantita'),input('Prezzo unitario (€)','Componenti.'+i+'.Prezzo')])+btn('Memorizza articolo','remember:'+i)+btn('Rimuovi componente','rmComp:'+i)+'</div>').join('')+btn('Aggiungi componente','comp')+'</fieldset>'+
   '<fieldset class="settore-lavorazioni"><legend>Lavorazioni e prezzo</legend>'+fields([['Preparazione (min)','Lavoro'],['Preparazione (€/h)','Paga'],['Pulizia e finitura (min)','PostMinuti'],['Postproduzione (€/h)','PostTariffa'],['Altri costi (€)','Altro'],['Ricarico (%)','Ricarico'],['IVA (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
@@ -385,7 +395,7 @@ function archivioFallimenti(){
  return '<section class="card"><h2>Stampe fallite</h2>'+(!rows.length?'<p>Nessun tentativo fallito registrato.</p>':rows.map(r=>'<div class="row"><strong>'+esc(r.Oggetto||r.Parte)+'</strong><p>'+esc(r.Data)+' · '+esc(r.Parte)+' · '+r.Minuti.toFixed(2)+' min · '+r.Bobine.map(b=>'#'+esc(b.Id)+': '+b.Grammi.toFixed(2)+' g').join(' · ')+'</p><p>'+esc(r.Note??'')+' · Costo interno '+euro(r.Costo)+'</p></div>').join(''))+'</section>';
 }
 
-function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+btn('Elimina preventivo','deleteQuote:'+i)+'</div>').join('')+'</section>'+archivioFallimenti()}
+function archive(){return '<section class="card"><h2>Preventivi salvati</h2>'+btn('Stampa elenco preventivi','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+statoPreventivo(p)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Apri','open:'+i)+btn('Elimina preventivo','deleteQuote:'+i)+'</div>').join('')+'</section>'+archivioFallimenti()}
 const printerFields=[...machine,['Tariffa elettrica (€/kWh)','Tariffa']];
 const costFields=[
  ['Budget riparazioni (€)','BudgetRiparazioni'],['Ore previste per il budget','BudgetOre'],
@@ -537,16 +547,21 @@ function spoolForm(existing,modello=null,onCreated=null){
  }
  dialog.showModal();
 }
-async function salvaPreventivo(x){
+async function salvaPreventivo(x,conferma=false){
     const preventivo={...structuredClone(q),Data:q.Data||new Date().toLocaleString('it-IT'),Esito:{Totale:x.total}};
     await save(d=>{
      const i=d.preventivi.findIndex(p=>preventivo.Numero?p.Numero===preventivo.Numero:
       originalQuote&&p.Titolo===originalQuote.Titolo&&p.Data===originalQuote.Data);
      if(preventivo.Numero&&i<0)throw Error('Preventivo non trovato nell’archivio.');
+
+     const precedente=i>=0?d.preventivi[i]:null;
+     preventivo.Stato=conferma||precedente?.Stato==='confermato'?'confermato':'bozza';
+     preventivo.DataConferma=precedente?.DataConferma??(conferma?new Date().toISOString():null);
      if(i>=0)d.preventivi[i]=preventivo;else d.preventivi.unshift(preventivo);
+
      assegnaNumeri(d);
     });
-    q.Numero=preventivo.Numero;q.Data=preventivo.Data;originalQuote=null;
+    q.Numero=preventivo.Numero;q.Data=preventivo.Data;q.Stato=preventivo.Stato;q.DataConferma=preventivo.DataConferma;originalQuote=null;
 }
 function dataPreventivo(value){
  const text=String(value??'').trim();
@@ -737,6 +752,12 @@ $('#view').addEventListener('click',async e=>{
     return;
    }
    case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
+   case 'confirmOrder':{
+    const result=costs();
+    if(!confirm('Confermare questo preventivo come ordine? Il consumo verrà scaricato solo premendo Registra consumo dopo la stampa.'))return;
+    await salvaPreventivo(result,true);render();showTotal(result);
+    msg('Preventivo confermato. Ora puoi registrare il consumo delle stampe riuscite.');return;
+   }
    case 'save':{
     const x=costs();await salvaPreventivo(x);
     render();showTotal(x);msg('Preventivo '+numeroPreventivo(q.Numero)+' salvato.');return;
@@ -790,6 +811,7 @@ $('#view').addEventListener('click',async e=>{
 
    case 'failed':apriStampaFallita(p);return;
    case 'consume':{
+    if(!ordineConfermato())throw Error('Conferma prima il preventivo o l’ordine.');
     preparaConsumi();
     if(consumoRegistrato(p)||consumiInCorso.has(p.ConsumoId))return;
     const plan=pianoConsumi([p],data,false);
@@ -823,6 +845,6 @@ document.addEventListener('focusout',e=>{
   el.dispatchEvent(new Event('input',{bubbles:true}));
  }
 });
-const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Versione 2026.11.24.1';
+const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Versione 2026.11.24.2';
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
