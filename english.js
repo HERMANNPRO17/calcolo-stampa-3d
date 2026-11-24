@@ -178,6 +178,67 @@ function applicaConsumo(db,parte,numero){
  return receipt;
 }
 
+
+function storicoFallimenti(parte){
+ const rows=(data.stampefallite??[]).filter(r=>r.ParteId===parte.ConsumoId);
+ return rows.length?'<details class="parametri-stampante"><summary>Recorded failed prints ('+rows.length+')</summary>'+rows.map(r=>'<p>'+esc(r.Data)+' · '+r.Minuti.toFixed(2)+' min · '+esc(r.Metodo)+' · '+r.Bobine.map(b=>'#'+esc(b.Id)+': '+b.Grammi.toFixed(2)+' g').join(' · ')+'</p>').join('')+'</details>':'';
+}
+function registraFallimento(db,record){
+ if((db.stampefallite??[]).some(r=>r.Id===record.Id))throw Error('This attempt has already been recorded.');
+ if(!Number.isFinite(record.Minuti)||record.Minuti<0)throw Error('Check the attempt duration.');
+ const grouped=new Map();
+ for(const entry of record.Bobine){
+  if(!Number.isFinite(entry.Grammi)||entry.Grammi<0)throw Error('Check consumed grams.');
+  if(entry.Grammi>0)grouped.set(entry.Id,(grouped.get(entry.Id)??0)+entry.Grammi);
+ }
+ if(!grouped.size)throw Error('Enter used grams for at least one spool.');
+ const actual=[];
+ for(const [key,grams] of grouped){
+  const b=db.bobine.find(b=>id(b.Id)===key);
+  if(!b||residuo(b)+0.000001<grams)throw Error('Insufficient stock or missing spool #'+key);
+  actual.push({Id:key,Grammi:grams,Nome:[b.Materiale,b.Colore].join(' · '),PrezzoKg:prezzoNetto(b.Prezzo,b.Iva,b.PrezzoIvato===true)*1000/n(b.Acquistato)});
+ }
+ const m=record.Macchina;
+ const cost=actual.reduce((sum,b)=>sum+b.Grammi*b.PrezzoKg/1000,0)+record.Minuti/60*((n(m.Watt)+n(m.WattAms))*n(m.Tariffa)/1000+ammortamento(m)+maintenance(m));
+ if(!Number.isFinite(cost))throw Error('Check printer parameters and spool prices.');
+ const saved={...record,Bobine:actual,Costo:cost};
+ for(const entry of actual){const b=db.bobine.find(b=>id(b.Id)===entry.Id);b.Lordo=n(b.Lordo)-entry.Grammi}
+ db.stampefallite??=[];db.stampefallite.push(saved);
+ return saved;
+}
+function apriStampaFallita(parte){
+ preparaConsumi();
+ const dialog=document.createElement('dialog'),recordId=crypto.randomUUID(),m=parte.Macchina??q;
+ const ids=[...new Set(parte.Materiali.flatMap(f=>[f.Bobina,f.Riserva]).filter(Boolean))];
+ if(!ids.length){msg('Assign spools to the filaments before recording a failed attempt.');return}
+ const bobine=ids.map(key=>data.bobine.find(b=>id(b.Id)===key)).filter(Boolean);
+ if(!bobine.length){msg('The assigned spools are no longer in inventory.');return}
+ dialog.innerHTML='<form class="card"><h2>Record failed print</h2><p>Enter material actually consumed, including waste. For multicolour or AMS backup, enter the grams used from each spool.</p><div class="fields"><label>Actual duration (min)<input type="number" name="minuti" min="0" step="0.01" value="0" required></label><label>Quantity determined by<select name="metodo"><option value="Pesata">Weighing</option><option value="Stimata">Estimate</option></select></label></div>'+
+ bobine.map(b=>'<label class="row">#'+id(b.Id)+' · '+esc(b.Materiale)+' · '+esc(b.Colore)+' · remaining '+residuo(b).toFixed(2)+' g<input type="number" data-failed-spool="'+id(b.Id)+'" min="0" step="0.01" value="0.00" required aria-label="Grams used from spool '+id(b.Id)+'"></label>').join('')+
+ '<label>Reason / notes<input name="note" maxlength="500"></label><label style="display:flex;align-items:center;gap:10px;margin:16px 0"><input style="width:auto" name="costo" type="checkbox" checked>Include in internal production cost</label><p>The attempt cost appears in the internal summary. The customer price remains the quoted amount.</p><p role="alert"></p><div class="actions"><button class="primary">Deduct from spools and record</button><button type="button">Cancel</button></div></form>';
+ document.body.append(dialog);const form=dialog.querySelector('form'),submit=form.querySelector('button.primary');
+ form.querySelector('button[type="button"]').onclick=()=>dialog.close();
+ dialog.addEventListener('close',()=>dialog.remove());
+ let pending=false;
+ form.onsubmit=async e=>{
+  e.preventDefault();if(pending)return;
+  const rows=Array.from(form.querySelectorAll('[data-failed-spool]'),el=>({Id:el.dataset.failedSpool,Grammi:n(el.value)}));
+  const mins=n(form.elements.minuti.value);
+  const record={Id:recordId,ParteId:parte.ConsumoId,NumeroPreventivo:q.Numero??null,Oggetto:q.Titolo,Parte:parte.Origine,Data:new Date().toLocaleString('en-GB'),Minuti:mins,Metodo:form.elements.metodo.value,Note:form.elements.note.value.trim(),IncludiCosto:form.elements.costo.checked,Bobine:rows,Macchina:{...structuredClone(m),Tariffa:m.Tariffa??q.Tariffa}};
+  if(parte.Materiali.filter(f=>n(f.Grammi)+n(f.Extra)>0).every(f=>f.Alimentazione==='EXT'))record.Macchina.WattAms=0;
+  if(!rows.some(r=>r.Grammi>0)){form.querySelector('[role=alert]').textContent='Enter at least one consumption greater than zero.';return}
+  if(!confirm('Confirm deduction of these grams for this failed attempt?\n'+rows.filter(r=>r.Grammi>0).map(r=>'#'+r.Id+': '+r.Grammi.toFixed(2)+' g').join('\n')))return;
+  pending=true;submit.disabled=true;
+  try{
+   const register=()=>save(db=>registraFallimento(db,record));
+   if(navigator.locks?.request)await navigator.locks.request(storageKey+':consumi',register);else await register();
+   dialog.close();render();msg('Failed print recorded and grams deducted from the spools.');
+  }catch(err){form.querySelector('[role=alert]').textContent=err.message}
+  finally{pending=false;submit.disabled=false}
+ };
+ dialog.showModal();
+}
+
 function printEditor(p,j){
  const prefix=j===q.StampeAggiuntive.length?'':'StampeAggiuntive.'+j+'.';
  const machines=[['','Quote’s default printer'],...data.profili.map(m=>[m.nome,m.nome])];
@@ -195,7 +256,7 @@ function printEditor(p,j){
   if(m.Riserva&&!reserves.some(([v])=>v===m.Riserva))reserves.push([m.Riserva,'Check backup '+m.Riserva]);
   return '<div class="row">'+(m.Slot?'<strong>'+(m.Alimentazione==='EXT'?'External spool (EXT) · ':'' )+'File filament '+esc(m.Slot)+'</strong>':'')+fields([input('Filament',k+'Nome','text'),input('Colour / HEX',k+'Colore','text'),input('Grams',k+'Grammi'),input('Additional waste (g)',k+'Extra'),input('€/kg',k+'Prezzo'),select('Spool',k+'Bobina',options),select('Filament feed',k+'Alimentazione',[['','Not specified'],['AMS','AMS'],['EXT','External spool (EXT)']]),...(m.Alimentazione==='AMS'?[select('Identical AMS backup spool',k+'Riserva',reserves)]:[])])+(m.Alimentazione==='AMS'?'<small>Backup requires a second identical spool with filament remaining. Enable automatic switching on the printer too.</small>'+(primary?btn('Add identical spool','backupSpool:'+j+':'+i):'<p>Select the primary spool first.</p>')+(!compatible.length?'<p role="status">No matching spool available in inventory.</p>':'')+'':'')+btn('Remove filament','rmMat:'+j+':'+i)+'</div>';
  }).join('');
- return '<fieldset class="parte-stampa"><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+pulsanteConsumo(p,j)+btn('Delete part','rmPart:'+j)+'</div></fieldset>';
+ return '<fieldset class="parte-stampa"><legend>Part '+(j+1)+'</legend>'+fields([input('Name or file',prefix+'Origine','text'),input('Duration (min)',prefix+'Minuti'),input('Pieces per run',prefix+'Pezzi'),input('Runs',prefix+'Ripetizioni'),machineSelect])+(p.AvvisoImportazione?'<p role="alert">'+esc(p.AvvisoImportazione)+'</p>':'')+'<p data-printer-summary="'+j+'"><strong>Printer used for this part:</strong> <span>'+datiStampante(p)+'</span></p>'+parametriMacchina+'<div class="foto-controllo">'+fotoHtml(p.Foto,p.Origine)+'<label>Part photo<input type="file" accept="image/*" data-photo="'+j+'"></label>'+(p.Foto?btn('Remove photo','rmPhoto:'+j):'')+'</div>'+materials+'<div class="actions">'+btn('Add filament','mat:'+j)+pulsanteConsumo(p,j)+btn('Failed print','failed:'+j)+btn('Delete part','rmPart:'+j)+'</div>'+storicoFallimenti(p)+'</fieldset>';
 }
 function quote(){
  preparaConsumi();
@@ -241,12 +302,15 @@ function costs(check=true){
  let acc=0,net=0;const rows=lines.map(([name,qty,price,foto])=>{acc+=price*(1+n(q.Ricarico)/100);const next=round(acc), amount=round(next-net);net=next;return [name,qty,amount,foto]});
  net=round(acc+costoEsercizio*(1+n(q.Ricarico)/100));
  const tax=round(net*n(q.Iva)/100),total=round(net+tax);
- const productionCost=lines.reduce((sum,row)=>sum+row[2],costoEsercizio);
- return {rows,net,tax,total,unit:total/n(q.ProdottiFiniti),productionCost,productionUnit:productionCost/n(q.ProdottiFiniti)};
+ const partIds=new Set([...q.StampeAggiuntive,q].map(p=>p.ConsumoId).filter(Boolean));
+ const failedCost=(data.stampefallite??[]).filter(r=>r.IncludiCosto&&partIds.has(r.ParteId)).reduce((sum,r)=>sum+n(r.Costo),0);
+ const productionCost=lines.reduce((sum,row)=>sum+row[2],costoEsercizio)+failedCost;
+ return {rows,net,tax,total,unit:total/n(q.ProdottiFiniti),productionCost,productionUnit:productionCost/n(q.ProdottiFiniti),failedCost};
 }
 function showTotal(x){
  const verifica=pianoConsumi([...q.StampeAggiuntive,q]);
  $('#total').innerHTML='<p><strong>Production cost: '+euro(x.productionCost)+'</strong> · '+euro(x.productionUnit)+' per finished product<br><small>Internal use, before markup and VAT</small></p><div class="total">'+euro(x.total)+'</div><p>'+euro(x.unit)+' per finished product · VAT '+euro(x.tax)+'</p>'+x.rows.map(([a,b,c])=>'<div class="row">'+esc(a)+' · '+esc(b)+' · '+euro(c)+'</div>').join('');
+ if(x.failedCost>0)$('#total').insertAdjacentHTML('beforeend','<p><strong>Failed prints included in internal cost: '+euro(x.failedCost)+'</strong></p>');
  if(verifica.warnings.length)$('#total').insertAdjacentHTML('afterbegin','<div role="alert" style="padding:14px;border:2px solid #b84e25;background:#fff3e9;margin-bottom:16px"><strong>Check filament availability</strong><ul>'+verifica.warnings.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul></div>');
 }
 
@@ -315,7 +379,13 @@ function preventiviOrdinati(){
  });
 }
 
-function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+btn('Delete quote','deleteQuote:'+i)+'</div>').join('')+'</section>'}
+
+function archivioFallimenti(){
+ const rows=data.stampefallite??[];
+ return '<section class="card"><h2>Failed prints</h2>'+(!rows.length?'<p>No failed attempts recorded.</p>':rows.map(r=>'<div class="row"><strong>'+esc(r.Oggetto||r.Parte)+'</strong><p>'+esc(r.Data)+' · '+esc(r.Parte)+' · '+r.Minuti.toFixed(2)+' min · '+r.Bobine.map(b=>'#'+esc(b.Id)+': '+b.Grammi.toFixed(2)+' g').join(' · ')+'</p><p>'+esc(r.Note??'')+' · Internal cost '+euro(r.Costo)+'</p></div>').join(''))+'</section>';
+}
+
+function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+btn('Delete quote','deleteQuote:'+i)+'</div>').join('')+'</section>'+archivioFallimenti()}
 const printerFields=[...machine,['Electricity rate (€/kWh)','Tariffa']];
 const costFields=[
  ['Repair budget (€)','BudgetRiparazioni'],['Hours covered by budget','BudgetOre'],
@@ -718,6 +788,7 @@ $('#view').addEventListener('click',async e=>{
    case 'printer':printerForm(i===undefined?undefined:data.profili[n(i)]);return;
 
 
+   case 'failed':apriStampaFallita(p);return;
    case 'consume':{
     preparaConsumi();
     if(consumoRegistrato(p)||consumiInCorso.has(p.ConsumoId))return;
@@ -752,6 +823,6 @@ document.addEventListener('focusout',e=>{
   el.dispatchEvent(new Event('input',{bubbles:true}));
  }
 });
-const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Version 2026.11.23.1';
+const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Version 2026.11.24.1';
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
