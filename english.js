@@ -6,7 +6,7 @@ const n=v=>Number(String(v??'').replace(',','.'));
 const round=v=>Math.round((v+Number.EPSILON)*100)/100;
 const mat=()=>({Nome:'PLA',Grammi:0,Extra:0,Prezzo:0,Bobina:'',Alimentazione:''});
 const part=()=>({Origine:'',Minuti:0,Pezzi:1,Ripetizioni:1,Materiali:[mat()]});
-const fresh=()=>({...part(),Titolo:'',Cliente:'',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
+const fresh=()=>({...part(),Titolo:'',Cliente:'',Stato:'bozza',Profilo:'Bambu Lab A1',ProdottiFiniti:1,StampeAggiuntive:[],Componenti:[],Watt:0,WattAms:0,Tariffa:0,Acquisto:0,Vita:3000,Lavoro:0,Paga:0,PostMinuti:0,PostTariffa:0,Altro:0,Ricarico:0,Iva:0});
 const blank=()=>({prossimo:1,bobine:[],preventivi:[],profili:[]});
 let data=blank(),tab='quote',q=fresh(),active=false,initialSync=true;
 const id=v=>String(v).padStart(4,'0');
@@ -151,12 +151,23 @@ function preparaConsumi(){
 function consumoRegistrato(parte,db=data){
  return !!(parte.ConsumoRegistrato||parte.ConsumoId&&db.consumiregistrati?.[parte.ConsumoId]);
 }
+
+function ordineConfermato(db=data){
+ return !!(q.Numero&&db.preventivi.some(p=>p.Numero===q.Numero&&p.Stato==='confermato'));
+}
+function statoPreventivo(p){
+ return p.Stato==='confermato'?'Confirmed / Order':'Draft';
+}
+
 function pulsanteConsumo(parte,index){
- const registered=consumoRegistrato(parte),pending=consumiInCorso.has(parte.ConsumoId);
- return '<button type="button" data-action="consume:'+index+'" '+(registered||pending?'disabled aria-disabled="true"':'')+'>'+
-  (registered?'Usage recorded':pending?'Recording…':'Record usage')+'</button>';
+ const registered=consumoRegistrato(parte),pending=consumiInCorso.has(parte.ConsumoId),confirmed=ordineConfermato();
+ return '<button type="button" data-action="consume:'+index+'" '+(registered||pending||!confirmed?'disabled aria-disabled="true"':'')+'>'+
+  (registered?'Usage recorded':pending?'Recording…':!confirmed?'Confirm the quote first':'Record usage')+'</button>';
 }
 function applicaConsumo(db,parte,numero){
+ const archived=db.preventivi.find(p=>p.Numero===numero);
+ if(!archived||archived.Stato!=='confermato')throw Error('Confirm the quote or order before deducting successful print usage.');
+
  if(consumoRegistrato(parte,db))throw Error('Usage for this part has already been recorded.');
  const current=pianoConsumi([parte],db,false);
  if(current.warnings.length)throw Error(current.warnings.join('\n'));
@@ -168,7 +179,6 @@ function applicaConsumo(db,parte,numero){
  db.consumiregistrati??={};
  const receipt={Data:new Date().toISOString(),Bobine:Object.fromEntries(current.used)};
  db.consumiregistrati[parte.ConsumoId]=receipt;
- const archived=db.preventivi.find(p=>p.Numero===numero);
  if(archived){
   for(const [index,p] of [...(archived.StampeAggiuntive??[]),archived].entries()){
    const key=p.ConsumoId??'preventivo:'+numero+':parte:'+index;
@@ -261,7 +271,7 @@ function printEditor(p,j){
 function quote(){
  preparaConsumi();
  const profiles=data.profili.map(p=>[p.nome,p.nome]);if(!profiles.some(([v])=>v===q.Profilo))profiles.push([q.Profilo,q.Profilo]);
- return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2><div class="actions">'+btn('New quote','new')+'</div>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
+ return '<section class="card"><h2>Quote · '+numeroPreventivo(q.Numero)+'</h2><p><strong>Status: '+statoPreventivo(q)+'</strong></p><div class="actions">'+btn('New quote','new')+(!ordineConfermato()?btn('Confirm quote / Order','confirmOrder',true):'')+'</div>'+fields([input('Product name','Titolo','text'),input('Customer','Cliente','text'),input('Finished products','ProdottiFiniti'),select('Default printer','Profilo',profiles)])+'<div class="actions">'+btn('Manage printers','managePrinters')+'</div>'+'<div class="import-panel"><label for="files"><strong>Import print files</strong><span>Select one or more sliced G-code or 3MF files.</span></label><input id="files" type="file" multiple accept=".gcode,.3mf"></div></section>'+
   [...q.StampeAggiuntive,q].map(printEditor).join('')+btn('Add part','part')+
   '<fieldset class="settore-extra"><legend>Extra materials</legend><p>New purchases default to VAT included. Set the VAT rate or choose VAT excluded. Previous entries keep their original net price.</p>'+q.Componenti.map((c,i)=>'<div class="row">'+menuArticoli('componente','data-component="'+i+'"')+fields([input('Component','Componenti.'+i+'.Nome','text'),input('Item code','Componenti.'+i+'.Codice','text'),input('Supplier','Componenti.'+i+'.Fornitore','text'),input('Purchase date','Componenti.'+i+'.DataAcquisto','date'),input('Purchase VAT (%)','Componenti.'+i+'.Iva'),select('Price type','Componenti.'+i+'.PrezzoIvato',[['true','VAT included'],['false','VAT excluded']]),input('Quantity','Componenti.'+i+'.Quantita'),input('Unit price (€)','Componenti.'+i+'.Prezzo')])+btn('Save item','remember:'+i)+btn('Remove component','rmComp:'+i)+'</div>').join('')+btn('Add component','comp')+'</fieldset>'+
   '<fieldset class="settore-lavorazioni"><legend>Labour and pricing</legend>'+fields([['Setup (min)','Lavoro'],['Setup (€/h)','Paga'],['Cleaning and finishing (min)','PostMinuti'],['Post-processing (€/h)','PostTariffa'],['Other costs (€)','Altro'],['Markup (%)','Ricarico'],['VAT (%)','Iva']].map(([a,b])=>input(a,b)))+'</fieldset>'+
@@ -385,7 +395,7 @@ function archivioFallimenti(){
  return '<section class="card"><h2>Failed prints</h2>'+(!rows.length?'<p>No failed attempts recorded.</p>':rows.map(r=>'<div class="row"><strong>'+esc(r.Oggetto||r.Parte)+'</strong><p>'+esc(r.Data)+' · '+esc(r.Parte)+' · '+r.Minuti.toFixed(2)+' min · '+r.Bobine.map(b=>'#'+esc(b.Id)+': '+b.Grammi.toFixed(2)+' g').join(' · ')+'</p><p>'+esc(r.Note??'')+' · Internal cost '+euro(r.Costo)+'</p></div>').join(''))+'</section>';
 }
 
-function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+btn('Delete quote','deleteQuote:'+i)+'</div>').join('')+'</section>'+archivioFallimenti()}
+function archive(){return '<section class="card"><h2>Saved quotes</h2>'+btn('Print quote list','print:preventivi')+preventiviOrdinati().map(({preventivo:p,index:i})=>'<div class="row"><strong>'+numeroPreventivo(p.Numero)+' · '+esc(p.Titolo)+'</strong><p>'+esc(p.Cliente)+' · '+esc(p.Data)+' · '+statoPreventivo(p)+' · '+euro(p.Esito?.Totale??0)+'</p>'+btn('Open','open:'+i)+btn('Delete quote','deleteQuote:'+i)+'</div>').join('')+'</section>'+archivioFallimenti()}
 const printerFields=[...machine,['Electricity rate (€/kWh)','Tariffa']];
 const costFields=[
  ['Repair budget (€)','BudgetRiparazioni'],['Hours covered by budget','BudgetOre'],
@@ -537,16 +547,21 @@ function spoolForm(existing,modello=null,onCreated=null){
  }
  dialog.showModal();
 }
-async function salvaPreventivo(x){
+async function salvaPreventivo(x,conferma=false){
     const preventivo={...structuredClone(q),Data:q.Data||new Date().toLocaleString('en-GB'),Esito:{Totale:x.total}};
     await save(d=>{
      const i=d.preventivi.findIndex(p=>preventivo.Numero?p.Numero===preventivo.Numero:
       originalQuote&&p.Titolo===originalQuote.Titolo&&p.Data===originalQuote.Data);
      if(preventivo.Numero&&i<0)throw Error('Quote not found in the archive.');
+
+     const precedente=i>=0?d.preventivi[i]:null;
+     preventivo.Stato=conferma||precedente?.Stato==='confermato'?'confermato':'bozza';
+     preventivo.DataConferma=precedente?.DataConferma??(conferma?new Date().toISOString():null);
      if(i>=0)d.preventivi[i]=preventivo;else d.preventivi.unshift(preventivo);
+
      assegnaNumeri(d);
     });
-    q.Numero=preventivo.Numero;q.Data=preventivo.Data;originalQuote=null;
+    q.Numero=preventivo.Numero;q.Data=preventivo.Data;q.Stato=preventivo.Stato;q.DataConferma=preventivo.DataConferma;originalQuote=null;
 }
 function dataPreventivo(value){
  const text=String(value??'').trim();
@@ -737,6 +752,12 @@ $('#view').addEventListener('click',async e=>{
     return;
    }
    case 'export':{const x=costs();if(!q.Numero){await salvaPreventivo(x);render();showTotal(x)}exportQuote(x);return}
+   case 'confirmOrder':{
+    const result=costs();
+    if(!confirm('Confirm this quote as an order? Stock is deducted only when you press Record usage after printing.'))return;
+    await salvaPreventivo(result,true);render();showTotal(result);
+    msg('Quote confirmed. You can now record successful print usage.');return;
+   }
    case 'save':{
     const x=costs();await salvaPreventivo(x);
     render();showTotal(x);msg('Quote '+numeroPreventivo(q.Numero)+' saved.');return;
@@ -790,6 +811,7 @@ $('#view').addEventListener('click',async e=>{
 
    case 'failed':apriStampaFallita(p);return;
    case 'consume':{
+    if(!ordineConfermato())throw Error('Confirm the quote or order first.');
     preparaConsumi();
     if(consumoRegistrato(p)||consumiInCorso.has(p.ConsumoId))return;
     const plan=pianoConsumi([p],data,false);
@@ -823,6 +845,6 @@ document.addEventListener('focusout',e=>{
   el.dispatchEvent(new Event('input',{bubbles:true}));
  }
 });
-const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Version 2026.11.24.1';
+const versioneApp=document.getElementById('app-version');if(versioneApp)versioneApp.textContent='Version 2026.11.24.2';
 render();sync();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
