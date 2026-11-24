@@ -131,3 +131,14 @@ La conferma scarica i grammi dalle bobine in un’unica operazione e salva un te
 Lo storico compare dentro la parte e nella scheda **Archivio → Stampe fallite**. Salva il preventivo per conservare il collegamento alla parte. Il checkbox **Includi nel costo di realizzazione interno** aggiunge materiale e tempo macchina del tentativo al costo interno; il prezzo offerto al cliente resta quello del preventivo. Il backup comprende anche lo storico dei tentativi.
 
 For each part, choose **Failed print**, enter actual grams per spool (weighed or estimated), actual duration and optional notes. Confirm to deduct stock once and record the attempt. Main and backup AMS spools accept separate amounts. Successful-print consumption remains available for the next attempt. Failed attempts are listed in the part and in the archive. Optionally include material and machine time in internal production cost; the customer quote price is unchanged. Save the quote to preserve its part link and use backups to transfer the history.
+
+
+## Conferma ordine e scarico filamento / Order confirmation — 2026.11.24.2
+
+Il preventivo nasce come **Bozza**. Per autorizzare lo scarico normale, premi **Conferma preventivo / Ordine** in alto: il preventivo viene salvato con lo stato **Confermato / Ordine**.
+
+La conferma non scarica filamento. Dopo la stampa riuscita, premi **Registra consumo** nella parte interessata. Il pulsante si disabilita dopo lo scarico riuscito. Le stampe fallite possono essere registrate anche prima della conferma, indicando il materiale realmente consumato.
+
+I preventivi già esistenti senza stato esplicito vengono trattati come bozze e richiedono conferma per i futuri scarichi normali.
+
+Quotes start as **Draft**. Use **Confirm quote / Order** to save a confirmed order and enable successful-print stock recording. Confirmation itself does not deduct stock. **Record usage** deducts the completed part once. Failed attempts can be recorded independently of confirmation, using actual consumed grams. Older quotes with no explicit status are treated as drafts.
