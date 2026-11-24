@@ -120,3 +120,14 @@ L’archivio dipende dal browser e dall’indirizzo o percorso della copia apert
 ### English
 
 The header shows the loaded release version. Extract the entire ZIP into a new folder, open **AVVIA APP.cmd**, then run **CREA ICONA DESKTOP.vbs** to update the desktop shortcut. The shortcut now opens the downloaded local index.html. Keep its folder in place. Use backup export and restore to transfer your saved data between copies or browsers.
+
+
+## Stampe fallite / Failed prints — 2026.11.24.1
+
+Dentro ogni parte, premi **Stampa fallita**. Inserisci i grammi effettivamente usati da ogni bobina, pesati o stimati, includendo gli scarti. Per bobina principale e riserva AMS puoi indicare quantità distinte. Indica la durata effettiva e, se utile, il motivo.
+
+La conferma scarica i grammi dalle bobine in un’unica operazione e salva un tentativo identificato, protetto dalla doppia registrazione. **Registra consumo** rimane disponibile per il successivo tentativo riuscito. Più tentativi falliti possono essere registrati separatamente.
+
+Lo storico compare dentro la parte e nella scheda **Archivio → Stampe fallite**. Salva il preventivo per conservare il collegamento alla parte. Il checkbox **Includi nel costo di realizzazione interno** aggiunge materiale e tempo macchina del tentativo al costo interno; il prezzo offerto al cliente resta quello del preventivo. Il backup comprende anche lo storico dei tentativi.
+
+For each part, choose **Failed print**, enter actual grams per spool (weighed or estimated), actual duration and optional notes. Confirm to deduct stock once and record the attempt. Main and backup AMS spools accept separate amounts. Successful-print consumption remains available for the next attempt. Failed attempts are listed in the part and in the archive. Optionally include material and machine time in internal production cost; the customer quote price is unchanged. Save the quote to preserve its part link and use backups to transfer the history.
